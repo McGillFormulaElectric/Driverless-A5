@@ -1,0 +1,39 @@
+# Two compose services: `student` (default) and `professor`.
+# Both use host networking so DDS discovery can travel over the Tailscale
+# interface on the host. On macOS/Windows Docker Desktop, `network_mode: host`
+# is limited — Linux is the supported path for the class VPN setup.
+services:
+  student:
+    build:
+      context: .
+    image: mfe/a5:humble
+    container_name: a5-student
+    network_mode: host
+    environment:
+      - ROS_DOMAIN_ID=42
+      - RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
+      - GITHUB_USER=${GITHUB_USER:?set GITHUB_USER=<your-github-handle> before `docker compose up`}
+      - A5_PROFESSOR_HOST=${A5_PROFESSOR_HOST:-professor.tailnet}
+    volumes:
+      - ../ros2_ws:/workspace
+    working_dir: /workspace
+    stdin_open: true
+    tty: true
+    command: bash
+
+  professor:
+    build:
+      context: .
+    image: mfe/a5:humble
+    container_name: a5-professor
+    network_mode: host
+    environment:
+      - ROS_DOMAIN_ID=42
+      - RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
+      - A5_PROFESSOR_HOST=localhost
+    volumes:
+      - ../ros2_ws:/workspace
+    working_dir: /workspace
+    stdin_open: true
+    tty: true
+    command: bash

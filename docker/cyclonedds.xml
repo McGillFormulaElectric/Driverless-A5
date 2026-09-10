@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<CycloneDDS xmlns="https://cdds.io/config"
+            xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+            xsi:schemaLocation="https://cdds.io/config https://raw.githubusercontent.com/eclipse-cyclonedds/cyclonedds/master/etc/cyclonedds.xsd">
+  <Domain id="any">
+    <General>
+      <!-- Bind DDS to the Tailscale interface (set by entrypoint.sh via A5_NETIF).
+           This is what makes discovery work across the class VPN. -->
+      <NetworkInterfaceAddress>${A5_NETIF}</NetworkInterfaceAddress>
+      <AllowMulticast>false</AllowMulticast>
+      <MaxMessageSize>65500B</MaxMessageSize>
+    </General>
+    <Discovery>
+      <!-- Multicast rarely traverses Tailscale; use unicast peers list built at runtime. -->
+      <ParticipantIndex>auto</ParticipantIndex>
+      <Peers>
+        <!-- The professor node's Tailscale hostname/IP. Override with the
+             CYCLONEDDS_PEERS env var or edit this list. -->
+        <Peer address="${A5_PROFESSOR_HOST:-professor}"/>
+      </Peers>
+    </Discovery>
+    <Internal>
+      <MinimumSocketReceiveBufferSize>10MB</MinimumSocketReceiveBufferSize>
+    </Internal>
+  </Domain>
+</CycloneDDS>
