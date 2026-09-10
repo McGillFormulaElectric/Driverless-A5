@@ -1,7 +1,7 @@
 from setuptools import setup
 from glob import glob
 
-package_name = 'a5_student'
+package_name = 'a5_neil'
 
 setup(
     name=package_name,
@@ -11,18 +11,19 @@ setup(
         ('share/ament_index/resource_index/packages', ['resource/' + package_name]),
         ('share/' + package_name, ['package.xml']),
         ('share/' + package_name + '/launch', glob('launch/*.launch.py')),
+        ('share/' + package_name + '/config', glob('config/*.yaml')),
     ],
-    install_requires=['setuptools', 'numpy'],
+    install_requires=['setuptools', 'numpy', 'pyyaml'],
     zip_safe=True,
-    maintainer='Student',
-    maintainer_email='student@example.com',
-    description='MFE A5 student template.',
+    maintainer='Neil',
+    maintainer_email='neilgeorge03@gmail.com',
+    description='MFE A5 Neil: cone-map sim + grader.',
     license='MIT',
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [
-            'planner_node = a5_student.planner_node:main',
-            'controller_node = a5_student.controller_node:main',
+            'sim_node = a5_neil.sim_node:main',
+            'grader = a5_neil.grader:main',
         ],
     },
 )

@@ -2,13 +2,14 @@
 
 Scans the ROS graph every 2 s and grades two things:
   * A5.1 — the student's `/<user>/centerline` (nav_msgs/Path). Pass if the
-    published path stays within 1.0 m of the analytic true centerline for
-    its full length and has >= 30 points.
-  * A5.2 — the per-user sim results reported by `a5_professor/sim_node`
-    on `/professor/sim_stats` (JSON String, latched). Pass if the user
-    completes >= 1 lap within 60 s with zero cone hits.
+    published path stays within `grading.centerline_tol_m` of the analytic
+    true centerline for its full length and has >= 30 points.
+  * A5.2 — the per-user sim results reported by `a5_neil/sim_node`
+    on `/neil/sim_stats` (JSON String, latched). Pass if the user
+    completes >= `grading.min_laps` laps within `grading.time_budget_s` with
+    zero cone hits.
 
-Feedback is published on `/professor/feedback` (std_msgs/String), only when
+Feedback is published on `/neil/feedback` (std_msgs/String), only when
 a student's verdict changes, in the same format as the earlier assignments:
     'Congrats <user>, the answer is correct'
     'Sorry <user>, the answer is incorrect (<metric>)'
@@ -16,7 +17,6 @@ a student's verdict changes, in the same format as the earlier assignments:
 from __future__ import annotations
 
 import json
-import math
 import re
 import time
 from dataclasses import dataclass, field
@@ -34,7 +34,7 @@ from rclpy.qos import (
 )
 from std_msgs.msg import String
 
-from a5_professor.sim_node import analytic_centerline
+from a5_neil.sim_node import analytic_centerline
 
 RELIABLE_QOS = QoSProfile(
     reliability=QoSReliabilityPolicy.RELIABLE,
@@ -49,19 +49,12 @@ LATCHED_QOS = QoSProfile(
     durability=QoSDurabilityPolicy.TRANSIENT_LOCAL,
 )
 
-DISCOVERY_PERIOD_S = 2.0
-GRADE_PERIOD_S = 2.0
-
 CENTERLINE_RE = re.compile(r'^/([^/]+)/centerline$')
-RESERVED_USERS = {'professor'}
+RESERVED_USERS = {'neil'}
 
-# A5.1 thresholds
-A51_MAX_LATERAL = 1.0   # m
+# Constants that aren't parameterized (a hit is always disqualifying;
+# min-points threshold is a hard structural check independent of scenario).
 A51_MIN_POINTS = 30
-
-# A5.2 thresholds
-A52_MIN_LAPS = 1
-A52_DEADLINE_S = 60.0
 A52_MAX_CONE_HITS = 0
 
 
@@ -76,10 +69,30 @@ class Grader(Node):
     def __init__(self):
         super().__init__('grader')
 
+        # -- ROS parameters (see a5_neil/config/params.yaml).
+        self.min_laps = int(
+            self.declare_parameter('grading.min_laps', 1).value
+        )
+        self.time_budget_s = float(
+            self.declare_parameter('grading.time_budget_s', 60.0).value
+        )
+        self.centerline_tol_m = float(
+            self.declare_parameter('grading.centerline_tol_m', 1.0).value
+        )
+        self.cone_hit_dist_m = float(
+            self.declare_parameter('grading.cone_hit_dist_m', 0.4).value
+        )
+        self.discovery_period_s = float(
+            self.declare_parameter('grading.discovery_period_s', 2.0).value
+        )
+        self.grade_period_s = float(
+            self.declare_parameter('grading.grade_period_s', 2.0).value
+        )
+
         self._centerline_ref = analytic_centerline(n=800)
 
         self.feedback_pub = self.create_publisher(
-            String, '/professor/feedback', RELIABLE_QOS
+            String, '/neil/feedback', RELIABLE_QOS
         )
 
         self._path_subs: Dict[str, object] = {}
@@ -88,16 +101,16 @@ class Grader(Node):
         self._latest_stats: dict = {}
 
         self.create_subscription(
-            String, '/professor/sim_stats', self._on_stats, LATCHED_QOS
+            String, '/neil/sim_stats', self._on_stats, LATCHED_QOS
         )
 
-        self.create_timer(DISCOVERY_PERIOD_S, self._discover)
-        self.create_timer(GRADE_PERIOD_S, self._grade)
+        self.create_timer(self.discovery_period_s, self._discover)
+        self.create_timer(self.grade_period_s, self._grade)
 
         self.get_logger().info(
-            f'Grader running. A5.1 tol={A51_MAX_LATERAL} m / >={A51_MIN_POINTS} pts, '
-            f'A5.2 >= {A52_MIN_LAPS} lap in {A52_DEADLINE_S:.0f}s with '
-            f'<= {A52_MAX_CONE_HITS} cone hits.'
+            f'Grader running. A5.1 tol={self.centerline_tol_m} m / '
+            f'>={A51_MIN_POINTS} pts, A5.2 >= {self.min_laps} lap in '
+            f'{self.time_budget_s:.0f}s with <= {A52_MAX_CONE_HITS} cone hits.'
         )
 
     # -- discovery ---------------------------------------------------------
@@ -107,7 +120,7 @@ class Grader(Node):
             if not m:
                 continue
             user = m.group(1)
-            if user in RESERVED_USERS or user.startswith('professor'):
+            if user in RESERVED_USERS or user.startswith('neil'):
                 continue
             if user in self._path_subs:
                 continue
@@ -129,9 +142,9 @@ class Grader(Node):
         try:
             self._latest_stats = json.loads(msg.data)
         except json.JSONDecodeError:
-            self.get_logger().warn('Bad JSON on /professor/sim_stats')
+            self.get_logger().warn('Bad JSON on /neil/sim_stats')
         for user in self._latest_stats:
-            if user in RESERVED_USERS or user.startswith('professor'):
+            if user in RESERVED_USERS or user.startswith('neil'):
                 continue
             self._users.setdefault(user, UserState())
 
@@ -157,12 +170,12 @@ class Grader(Node):
             diffs = pts[:, None, :] - self._centerline_ref[None, :, :]
             dists = np.linalg.norm(diffs, axis=2)
             max_err = float(dists.min(axis=1).max())
-            if max_err <= A51_MAX_LATERAL:
+            if max_err <= self.centerline_tol_m:
                 verdict = 'correct'
                 metric = f'max_err={max_err:.3f} m, n={len(pts)}'
             else:
                 verdict = 'incorrect'
-                metric = f'max_err={max_err:.3f} m > {A51_MAX_LATERAL} m'
+                metric = f'max_err={max_err:.3f} m > {self.centerline_tol_m} m'
         if verdict != state.a51_last_verdict:
             state.a51_last_verdict = verdict
             self._publish_feedback('A5.1', user, verdict, metric)
@@ -174,8 +187,9 @@ class Grader(Node):
         laps = int(stats.get('laps', 0))
         cone_hits = int(stats.get('cone_hits', 0))
         last_lap_time = stats.get('last_lap_time')
-        if laps >= A52_MIN_LAPS and cone_hits <= A52_MAX_CONE_HITS \
-                and last_lap_time is not None and last_lap_time <= A52_DEADLINE_S:
+        if laps >= self.min_laps and cone_hits <= A52_MAX_CONE_HITS \
+                and last_lap_time is not None \
+                and last_lap_time <= self.time_budget_s:
             verdict = 'correct'
             metric = f'lap_time={last_lap_time:.2f}s, cone_hits={cone_hits}'
         else:

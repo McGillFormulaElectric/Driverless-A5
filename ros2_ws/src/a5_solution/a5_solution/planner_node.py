@@ -1,6 +1,6 @@
 """A5.1 — centerline path planner.
 
-Subscribe to the professor's cone map on `/professor/cone_map`
+Subscribe to Neil's cone map on `/neil/cone_map`
 (`geometry_msgs/PoseArray`, latched via TRANSIENT_LOCAL) and your own state
 on `/<namespace>/state` (`nav_msgs/Odometry`). Publish an ordered centerline
 on `/<namespace>/centerline` (`nav_msgs/Path`, `map` frame).
@@ -12,7 +12,7 @@ Cone-color encoding (see README):
 
 Run with your GitHub username as the ROS namespace:
 
-    ros2 run a5_student planner_node --ros-args -r __ns:=/<github-username>
+    ros2 run a5_solution planner_node --ros-args -r __ns:=/<github-username>
 """
 from __future__ import annotations
 
@@ -36,7 +36,7 @@ RELIABLE_QOS = QoSProfile(
     depth=10,
 )
 
-# Cone map is latched by the professor via TRANSIENT_LOCAL — our subscription
+# Cone map is latched by Neil via TRANSIENT_LOCAL — our subscription
 # must match durability or DDS will silently drop us.
 LATCHED_QOS = QoSProfile(
     reliability=QoSReliabilityPolicy.RELIABLE,
@@ -55,7 +55,7 @@ class PlannerNode(Node):
         self._have_state = False
 
         self.create_subscription(
-            PoseArray, '/professor/cone_map', self._on_cones, LATCHED_QOS
+            PoseArray, '/neil/cone_map', self._on_cones, LATCHED_QOS
         )
         self.create_subscription(
             Odometry, 'state', self._on_state, RELIABLE_QOS

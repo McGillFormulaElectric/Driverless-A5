@@ -1,0 +1,15 @@
+# Student-side scenario parameters for MFE A5.
+#
+# The student's planner_node/controller_node run under /<github_user>/…, so
+# hardcoding a namespace here would break as soon as anyone changes their
+# handle. The `/**` wildcard applies each block to every matching node
+# regardless of namespace.
+
+planner_node:
+  ros__parameters: {}
+
+controller_node:
+  ros__parameters:
+    lookahead_m: 4.0
+    v_target_min: 3.0
+    v_target_max: 10.0

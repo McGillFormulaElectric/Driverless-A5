@@ -1,0 +1,26 @@
+# Neil-side scenario parameters for MFE A5.
+#
+# `sim_node` and `grader` each declare only the keys they actually use; keys
+# under the wrong group are silently ignored. Defaults track the MFE25
+# vehicle.yaml (MFE-Driverless-V1/mfe_bringup/config/vehicle.yaml).
+
+sim_node:
+  ros__parameters:
+    vehicle:
+      wheelbase: 1.56
+      max_steer_rad: 0.489
+      max_lat_accel: 8.0
+      max_decel: 10.0
+      max_accel: 5.0
+    sim:
+      hz: 50.0
+      speed_ctrl_k: 3.0
+      start_v: 0.0
+
+grader:
+  ros__parameters:
+    grading:
+      min_laps: 1
+      time_budget_s: 60.0
+      centerline_tol_m: 1.0
+      cone_hit_dist_m: 0.4

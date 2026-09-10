@@ -1,10 +1,10 @@
 <?xml version="1.0"?>
 <?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
 <package format="3">
-  <name>a5_student</name>
+  <name>a5_solution</name>
   <version>0.1.0</version>
-  <description>MFE A5 student template: centerline path planner (A5.1) and pure-pursuit controller (A5.2).</description>
-  <maintainer email="student@example.com">Student</maintainer>
+  <description>MFE A5 student solution template: centerline path planner (A5.1) and pure-pursuit controller (A5.2).</description>
+  <maintainer email="neilgeorge03@gmail.com">Neil George</maintainer>
   <license>MIT</license>
 
   <depend>rclpy</depend>
@@ -12,6 +12,9 @@
   <depend>geometry_msgs</depend>
   <depend>nav_msgs</depend>
   <depend>ackermann_msgs</depend>
+
+  <!-- bringup.launch.py includes neil.launch.py; only needed at runtime. -->
+  <exec_depend>a5_neil</exec_depend>
 
   <test_depend>ament_copyright</test_depend>
   <test_depend>ament_flake8</test_depend>

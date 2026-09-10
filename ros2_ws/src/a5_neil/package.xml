@@ -1,10 +1,10 @@
 <?xml version="1.0"?>
 <?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
 <package format="3">
-  <name>a5_professor</name>
+  <name>a5_neil</name>
   <version>0.1.0</version>
-  <description>MFE A5 professor side: cone-map publisher, per-student bicycle sim, and auto-discovery grader for path planning + pure-pursuit.</description>
-  <maintainer email="professor@example.com">Professor</maintainer>
+  <description>MFE A5 Neil side: cone-map publisher, per-student bicycle sim, and auto-discovery grader for path planning + pure-pursuit.</description>
+  <maintainer email="neilgeorge03@gmail.com">Neil George</maintainer>
   <license>MIT</license>
 
   <depend>rclpy</depend>
