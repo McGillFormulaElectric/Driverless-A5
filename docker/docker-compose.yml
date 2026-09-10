@@ -1,13 +1,12 @@
-# Two compose services: `solution` (default) and `neil`.
+# Two compose services: `new_member` (default) and `neil`.
 # Both use host networking so DDS discovery can travel over the Tailscale
 # interface on the host. On macOS/Windows Docker Desktop, `network_mode: host`
 # is limited — Linux is the supported path for the class VPN setup.
 services:
-  solution:
+  new_member:
     build:
       context: .
     image: mfe/a5:humble
-    container_name: a5-solution
     network_mode: host
     environment:
       - ROS_DOMAIN_ID=42
@@ -25,7 +24,6 @@ services:
     build:
       context: .
     image: mfe/a5:humble
-    container_name: a5-neil
     network_mode: host
     environment:
       - ROS_DOMAIN_ID=42

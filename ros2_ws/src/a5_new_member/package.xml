@@ -1,9 +1,9 @@
 <?xml version="1.0"?>
 <?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
 <package format="3">
-  <name>a5_solution</name>
+  <name>a5_new_member</name>
   <version>0.1.0</version>
-  <description>MFE A5 student solution template: centerline path planner (A5.1) and pure-pursuit controller (A5.2).</description>
+  <description>MFE A5 student new_member template: centerline path planner (A5.1) and pure-pursuit controller (A5.2).</description>
   <maintainer email="neilgeorge03@gmail.com">Neil George</maintainer>
   <license>MIT</license>
 

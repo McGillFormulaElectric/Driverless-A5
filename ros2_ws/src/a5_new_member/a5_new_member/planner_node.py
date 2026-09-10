@@ -12,7 +12,7 @@ Cone-color encoding (see README):
 
 Run with your GitHub username as the ROS namespace:
 
-    ros2 run a5_solution planner_node --ros-args -r __ns:=/<github-username>
+    ros2 run a5_new_member planner_node --ros-args -r __ns:=/<github-username>
 """
 from __future__ import annotations
 

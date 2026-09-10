@@ -85,7 +85,7 @@ All pubs/subs use the class-standard QoS
 `QoSProfile(reliability=RELIABLE, history=KEEP_LAST, depth=10)`. The two
 latched topics additionally set `durability=TRANSIENT_LOCAL` — your
 subscriber must match that durability or DDS will silently drop the
-connection. See `a5_solution/planner_node.py` for a working example.
+connection. See `a5_new_member/planner_node.py` for a working example.
 
 ### 2.1 Cone-color encoding
 Neil's sim packs cone color into a `geometry_msgs/Pose` because
@@ -119,7 +119,7 @@ of the track, and publish it on `/${GITHUB_USER}/centerline`
 (`nav_msgs/Path`, `map` frame). Grader threshold: **every point within
 1.0 m of the true centerline, and at least 30 points.**
 
-Template in `ros2_ws/src/a5_solution/a5_solution/planner_node.py`. The
+Template in `ros2_ws/src/a5_new_member/a5_new_member/planner_node.py`. The
 `TODO(student)` block inside `_compute_centerline` is where you fill in the
 plan. A minimal approach:
 
@@ -136,7 +136,7 @@ Either passes.
 ```bash
 colcon build --symlink-install
 source install/setup.bash
-ros2 launch a5_solution planner.launch.py github_user:=$GITHUB_USER
+ros2 launch a5_new_member planner.launch.py github_user:=$GITHUB_USER
 ```
 
 Watch for the verdict:
@@ -160,7 +160,7 @@ plus a simple curvature-scheduled speed profile.
 
 Grader threshold: **>= 1 complete lap in <= 60 s with zero cone hits.**
 
-Template in `ros2_ws/src/a5_solution/a5_solution/controller_node.py`. The
+Template in `ros2_ws/src/a5_new_member/a5_new_member/controller_node.py`. The
 `TODO(student)` block inside `_pure_pursuit` walks you through the algorithm:
 
 1. Find the closest waypoint.
@@ -182,7 +182,7 @@ Sensible starting values: `LOOKAHEAD = 4 m`, `MIN_SPEED = 3 m/s`,
 ```bash
 colcon build --symlink-install
 source install/setup.bash
-ros2 launch a5_solution controller.launch.py github_user:=$GITHUB_USER
+ros2 launch a5_new_member controller.launch.py github_user:=$GITHUB_USER
 ```
 
 This launch file brings up both the planner and the controller. Watch:
@@ -233,9 +233,9 @@ Driverless-A5/
 ├── docker/                          # Dockerfile, compose, CycloneDDS config, entrypoint
 ├── ros2_ws/
 │   └── src/
-│       ├── a5_solution/              # your template — this is where you write code
-│       │   ├── a5_solution/planner_node.py     (A5.1)
-│       │   ├── a5_solution/controller_node.py  (A5.2)
+│       ├── a5_new_member/              # your template — this is where you write code
+│       │   ├── a5_new_member/planner_node.py     (A5.1)
+│       │   ├── a5_new_member/controller_node.py  (A5.2)
 │       │   └── launch/{planner,controller}.launch.py
 │       └── a5_neil/            # for reference; not run by students
 │           ├── a5_neil/sim_node.py       (bicycle sim + cone map)

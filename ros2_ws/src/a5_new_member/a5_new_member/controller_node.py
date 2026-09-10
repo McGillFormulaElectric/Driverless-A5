@@ -10,12 +10,12 @@ Pure pursuit references:
     Tracking Algorithm* (CMU-RI-TR-92-01).
 
 Tunables are exposed as ROS parameters (see
-`a5_solution/config/params.yaml`): `lookahead_m`, `v_target_min`,
+`a5_new_member/config/params.yaml`): `lookahead_m`, `v_target_min`,
 `v_target_max`.
 
 Run with your GitHub username as the ROS namespace:
 
-    ros2 run a5_solution controller_node --ros-args -r __ns:=/<github-username>
+    ros2 run a5_new_member controller_node --ros-args -r __ns:=/<github-username>
 """
 from __future__ import annotations
 
@@ -47,7 +47,7 @@ class ControllerNode(Node):
     def __init__(self):
         super().__init__('controller_node')
 
-        # -- ROS parameters (see a5_solution/config/params.yaml). --
+        # -- ROS parameters (see a5_new_member/config/params.yaml). --
         self.lookahead_m = float(
             self.declare_parameter('lookahead_m', 4.0).value
         )
