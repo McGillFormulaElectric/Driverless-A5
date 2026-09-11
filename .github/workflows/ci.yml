@@ -24,7 +24,7 @@ jobs:
         uses: ros-tooling/action-ros-ci@v0.3
         with:
           target-ros2-distro: humble
-          package-name: a5_neil a5_new_member
+          package-name: a5_new_member
           vcs-repo-file-url: ""
           colcon-defaults: |
             {

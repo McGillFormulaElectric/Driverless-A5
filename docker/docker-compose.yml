@@ -20,19 +20,3 @@ services:
     stdin_open: true
     tty: true
     command: bash
-
-  neil:
-    build:
-      context: .
-    image: mfe/a5:humble
-    network_mode: host
-    environment:
-      - ROS_DOMAIN_ID=42
-      - RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
-      - A5_NEIL_HOST=localhost
-    volumes:
-      - ../ros2_ws:/workspace
-    working_dir: /workspace
-    stdin_open: true
-    tty: true
-    command: bash
