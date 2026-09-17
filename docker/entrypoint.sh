@@ -51,13 +51,26 @@ fi
 
 NEIL_IP="${A5_NEIL_HOST:-100.127.203.84}"
 
-# Set CycloneDDS config as inline XML so env vars expand correctly.
-# Point discovery unicast at Neil's Tailscale IP — packets route through
-# tailscale0 automatically when the interface exists.
-export CYCLONEDDS_URI="<CycloneDDS><Domain><Discovery><Peers><Peer address=\"${NEIL_IP}\"/></Peers></Discovery></Domain></CycloneDDS>"
+# Detect our own Tailscale IP so CycloneDDS binds to it as the source address.
+# Without this, CycloneDDS auto-picks eth0's IP and the Jetson can't route
+# its discovery responses back to us.
+MY_TS_IP=""
+if ip link show tailscale0 >/dev/null 2>&1; then
+  MY_TS_IP=$(ip addr show tailscale0 | grep 'inet ' | awk '{print $2}' | cut -d/ -f1)
+fi
+
+if [ -n "${MY_TS_IP}" ]; then
+  export CYCLONEDDS_URI="<CycloneDDS><Domain>\
+<General><Interfaces><NetworkInterface address=\"${MY_TS_IP}\" multicast=\"false\"/></Interfaces></General>\
+<Discovery><Peers><Peer address=\"${NEIL_IP}\"/></Peers></Discovery>\
+</Domain></CycloneDDS>"
+  echo "[a5] DDS bound to ${MY_TS_IP} → peer ${NEIL_IP}"
+else
+  export CYCLONEDDS_URI="<CycloneDDS><Domain><Discovery><Peers><Peer address=\"${NEIL_IP}\"/></Peers></Discovery></Domain></CycloneDDS>"
+  echo "[a5] DDS peer → ${NEIL_IP} (no tailscale0 — using auto interface)"
+fi
 
 echo "[a5] ROS_DOMAIN_ID=${ROS_DOMAIN_ID}  RMW=${RMW_IMPLEMENTATION}  NETIF=${A5_NETIF}"
-echo "[a5] DDS peer → ${NEIL_IP}"
 if [ -n "${GITHUB_USER:-}" ]; then
   echo "[a5] GITHUB_USER=${GITHUB_USER}  →  your ROS namespace is /${GITHUB_USER}"
 fi
