@@ -120,38 +120,34 @@ class PlannerNode(Node):
     ) -> Optional[np.ndarray]:
         """Compute an ordered centerline from left/right cone boundaries.
 
-        Reference approach (recommended): pair each blue cone with its
-        nearest yellow cone, take the midpoints, then order the midpoints
-        by walking around the loop from an arbitrary starting point.
-
-        A more principled option is a Delaunay triangulation over the
-        combined cone set and keeping only the edges that connect a blue
-        to a yellow cone (see `scipy.spatial.Delaunay`). Either is fine
-        for grading — the tolerance is 1.0 m.
+        A more principled option than the recipe below is a Delaunay
+        triangulation over the combined cone set, keeping only the edges
+        that connect a blue to a yellow cone (see `scipy.spatial.Delaunay`).
+        Either is fine for grading — the tolerance is 1.0 m.
         """
         # ------------------------------------------------------------------
         # TODO(student): implement centerline construction.
         #
-        # A minimal recipe:
-        #   1. For each blue cone, find its nearest yellow cone.
-        #   2. Compute the midpoint of that pair -> raw centerline point.
-        #   3. Order the midpoints so they form a loop: start from any
-        #      point, repeatedly pick the nearest unvisited neighbour.
-        #   4. Return an (N, 2) array. Aim for N >= 30 (grader threshold).
-        #
-        # HINT: numpy broadcasting makes step 1 a one-liner:
-        #   d = np.linalg.norm(blue[:, None, :] - yellow[None, :, :], axis=2)
-        #   nearest = np.argmin(d, axis=1)
+        #   1. For each blue cone, find its nearest yellow cone and take
+        #      the midpoint -> raw centerline point.
+        #   2. Order the midpoints into a loop. `self._greedy_loop_order`
+        #      below is a working nearest-neighbour ordering you can reuse.
+        #   3. Return an (N, 2) array. Aim for N >= 30 (grader threshold).
         # ------------------------------------------------------------------
-        d = np.linalg.norm(blue[:, None, :] - yellow[None, :, :], axis=2)
-        nearest = np.argmin(d, axis=1)
-        mids = 0.5 * (blue + yellow[nearest])
-        # Stub ordering (leaves it up to the student to improve on):
-        return self._greedy_loop_order(mids)
+        return None  # <-- replace with your (N, 2) centerline array
 
     @staticmethod
     def _greedy_loop_order(points: np.ndarray) -> np.ndarray:
-        """Greedy nearest-neighbour ordering starting at index 0."""
+        """Greedy nearest-neighbour ordering starting at index 0.
+
+        Reversed by default before returning: greedy nearest-neighbour has
+        no notion of "which way is forward" around the loop, and Neil's sim
+        only counts a lap on a start-line crossing in one specific
+        rotational direction (see sim_node.py::_update_metrics). The
+        un-reversed order walks this track's cone layout backward relative
+        to what the sim expects — confirmed empirically (laps never
+        registered without the reversal, registered reliably with it).
+        """
         n = len(points)
         if n == 0:
             return points
@@ -165,7 +161,7 @@ class PlannerNode(Node):
             nxt = int(np.argmin(d))
             order.append(nxt)
             used[nxt] = True
-        return points[order]
+        return points[order][::-1]
 
 
 def main():

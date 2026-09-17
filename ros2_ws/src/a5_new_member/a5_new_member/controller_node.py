@@ -121,43 +121,24 @@ class ControllerNode(Node):
         # ------------------------------------------------------------------
         # TODO(student): implement pure pursuit.
         #
-        #   1. Find the closest waypoint to the vehicle.
-        #   2. Walk forward along the path (with wrap-around) until you
-        #      find the first waypoint whose distance from the vehicle is
-        #      >= lookahead_m. That is your goal point (gx, gy).
-        #   3. Transform the goal into the vehicle body frame:
+        #   1. Find the lookahead goal point (gx, gy) — see
+        #      self._find_lookahead_point(path) below for a working
+        #      waypoint search you can reuse.
+        #   2. Transform the goal into the vehicle body frame:
         #         dx = gx - x
         #         dy = gy - y
         #         local_x =  cos(-yaw)*dx - sin(-yaw)*dy
         #         local_y =  sin(-yaw)*dx + cos(-yaw)*dy
         #      (equivalently local = R(-yaw) @ [dx, dy]).
-        #   4. Steering angle (bicycle model):
+        #   3. Steering angle (bicycle model):
         #         delta = atan2(2*L*local_y, lookahead_m**2)
-        #   5. Pick a target speed. A simple heuristic: use the local
-        #      curvature |2*local_y / lookahead_m**2| and slow down when
-        #      it's large. E.g.:
+        #   4. Target speed, backing off with curvature:
         #         curvature = 2*abs(local_y) / (lookahead_m**2)
         #         v_target  = v_target_max - SPEED_CURVATURE_GAIN * curvature
-        #
-        # A worked reference implementation is intentionally not provided —
-        # the pieces above are all you need.
         # ------------------------------------------------------------------
-        # Stub: aim straight, at the min speed. Replace this.
-        gx, gy = self._pick_lookahead_stub(path)
-        dx = gx - self._x
-        dy = gy - self._y
-        c, s = math.cos(-self._yaw), math.sin(-self._yaw)
-        local_x = c * dx - s * dy
-        local_y = s * dx + c * dy
-        # Placeholder — students should replace with real pure-pursuit math.
-        delta = math.atan2(
-            2.0 * WHEELBASE_L * local_y, self.lookahead_m * self.lookahead_m
-        )
-        curvature = 2.0 * abs(local_y) / (self.lookahead_m * self.lookahead_m + 1e-6)
-        v_target = self.v_target_max - SPEED_CURVATURE_GAIN * curvature
-        return delta, v_target
+        return 0.0, self.v_target_min  # <-- replace with real steering/speed
 
-    def _pick_lookahead_stub(self, path: np.ndarray) -> tuple:
+    def _find_lookahead_point(self, path: np.ndarray) -> tuple:
         pos = np.array([self._x, self._y])
         d = np.linalg.norm(path - pos, axis=1)
         i0 = int(np.argmin(d))

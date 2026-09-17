@@ -195,6 +195,8 @@ Expected verdict:
 [A5.2] Congrats <your-github-user>, the answer is correct
 ```
 
+Don't be discouraged by `[A5.2] Sorry ... (laps=0, cone_hits=0, last_lap_time=None)` right after you launch — that's expected, not a failure. A clean lap takes roughly 20 seconds, and the grader can't report `laps=1` until your car has actually finished one. If your controller is working, this flips to `Congrats` on its own once the first lap completes; you don't need to restart anything.
+
 ---
 
 ## 5. Visualizing with Foxglove Studio (strongly recommended)

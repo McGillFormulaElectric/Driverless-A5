@@ -13,6 +13,7 @@
     <Discovery>
       <!-- Multicast rarely traverses Tailscale; use unicast peers list built at runtime. -->
       <ParticipantIndex>auto</ParticipantIndex>
+      <MaxAutoParticipantIndex>100</MaxAutoParticipantIndex>
       <Peers>
         <!-- The professor node's Tailscale hostname/IP. Override with the
              CYCLONEDDS_PEERS env var or edit this list. -->
