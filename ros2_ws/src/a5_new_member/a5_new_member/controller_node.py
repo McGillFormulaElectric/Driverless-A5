@@ -131,7 +131,7 @@ class ControllerNode(Node):
         #         local_y =  sin(-yaw)*dx + cos(-yaw)*dy
         #      (equivalently local = R(-yaw) @ [dx, dy]).
         #   3. Steering angle (bicycle model):
-        #         delta = atan2(2*L*local_y, lookahead_m**2)
+        #         delta = atan2(2*WHEELBASE_L*local_y, lookahead_m**2)
         #   4. Target speed, backing off with curvature:
         #         curvature = 2*abs(local_y) / (lookahead_m**2)
         #         v_target  = v_target_max - SPEED_CURVATURE_GAIN * curvature

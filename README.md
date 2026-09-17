@@ -167,7 +167,7 @@ Template in `ros2_ws/src/a5_new_member/a5_new_member/controller_node.py`. The
 2. Walk forward along the path until you find the first waypoint
    `>= LOOKAHEAD` away (loop around the end). That's the goal.
 3. Transform the goal into the vehicle body frame.
-4. Steering: `delta = atan2(2 * L * local_y, LOOKAHEAD**2)`.
+4. Steering: `delta = atan2(2 * WHEELBASE_L * local_y, LOOKAHEAD**2)`.
 5. Speed: back off `MAX_SPEED` as the local curvature grows.
 
 Sensible starting values: `LOOKAHEAD = 4 m`, `MIN_SPEED = 3 m/s`,
