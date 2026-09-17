@@ -1,22 +1,47 @@
-# Two compose services: `new_member` (default) and `neil`.
-# Both use host networking so DDS discovery can travel over the Tailscale
-# interface on the host. On macOS/Windows Docker Desktop, `network_mode: host`
-# is limited — Linux is the supported path for the class VPN setup.
+# Two compose services:
+#   tailscale  — joins the MFE tailnet (sidecar, works on macOS + Linux)
+#   new_member — ROS 2 node, shares tailscale's network namespace
+#
+# Usage:
+#   docker compose up -d tailscale     # start tailscale sidecar first
+#   docker compose run --rm new_member # then run your ROS node
+
 services:
+  tailscale:
+    image: tailscale/tailscale:latest
+    hostname: ${GITHUB_USER:-new-member}
+    environment:
+      - TS_AUTHKEY=${TS_AUTHKEY:?set TS_AUTHKEY in docker/.env}
+      - TS_HOSTNAME=${GITHUB_USER:-new-member}
+      - TS_STATE_DIR=/var/lib/tailscale
+      - TS_USERSPACE=false
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+    devices:
+      - /dev/net/tun:/dev/net/tun
+    volumes:
+      - tailscale-state:/var/lib/tailscale
+    restart: unless-stopped
+
   new_member:
     build:
       context: .
     image: mfe/a5:humble
-    network_mode: host
+    network_mode: "service:tailscale"
     environment:
       - ROS_DOMAIN_ID=42
       - RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
-      - GITHUB_USER=${GITHUB_USER:?set GITHUB_USER=<your-github-handle> before `docker compose up`}
-      - TS_AUTHKEY=${TS_AUTHKEY:-}
-      - A5_NEIL_HOST=${A5_NEIL_HOST:-neil.tailnet}
+      - GITHUB_USER=${GITHUB_USER:?set GITHUB_USER in docker/.env}
+      - A5_NEIL_HOST=${A5_NEIL_HOST:-neil-ubuntu-desktop}
     volumes:
       - ../ros2_ws:/workspace
     working_dir: /workspace
     stdin_open: true
     tty: true
+    depends_on:
+      - tailscale
     command: bash
+
+volumes:
+  tailscale-state:
