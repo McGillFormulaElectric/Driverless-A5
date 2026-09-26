@@ -5,10 +5,10 @@ Periodically scans the ROS graph for topics matching:
   - /<user>/answer  (std_msgs/Float32)  -> A2.2
 
 For each newly-seen topic it creates a subscription. It also subscribes to
-Neil's own /neil/signal so it can run the *reference* LPF and compare each
+Neil's own /grader/signal so it can run the *reference* LPF and compare each
 student's stream against the expected output.
 
-Feedback is published on /neil/feedback (std_msgs/String) as either:
+Feedback is published on /grader/feedback (std_msgs/String) as either:
     'Congrats <user>, the answer is correct'
     'Sorry <user>, the answer is incorrect'
 The message is only republished when a student transitions between states.
@@ -68,12 +68,12 @@ class Grader(Node):
         self.discovery_period_s = float(self.get_parameter('discovery_period_s').value)
         self.grade_period_s = float(self.get_parameter('grade_period_s').value)
 
-        self.feedback_pub = self.create_publisher(String, '/neil/feedback', RELIABLE_QOS)
+        self.feedback_pub = self.create_publisher(String, '/grader/feedback', RELIABLE_QOS)
 
         # Reference LPF state, computed from our own signal stream.
         self._ref_samples: Deque[tuple[float, float]] = deque(maxlen=self.match_window * 4)
         self._ref_y_prev: float | None = None
-        self.create_subscription(Float32, '/neil/signal', self._on_signal, RELIABLE_QOS)
+        self.create_subscription(Float32, '/grader/signal', self._on_signal, RELIABLE_QOS)
 
         self._hello: dict[str, HelloState] = {}
         self._hello_subs: dict[str, object] = {}

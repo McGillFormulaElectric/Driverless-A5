@@ -1,4 +1,4 @@
-"""Publishes /neil/signal at signal_hz Hz.
+"""Publishes /grader/signal at signal_hz Hz.
 
 Signal = sum of two sinusoids + zero-mean Gaussian noise, deterministic given
 the seed (so grading is reproducible across restarts on Neil's side).
@@ -43,12 +43,12 @@ class SignalPublisher(Node):
         self.noise_std = float(self.get_parameter('noise_std').value)
         self.seed = int(self.get_parameter('seed').value)
 
-        self.pub = self.create_publisher(Float32, '/neil/signal', RELIABLE_QOS)
+        self.pub = self.create_publisher(Float32, '/grader/signal', RELIABLE_QOS)
         self.timer = self.create_timer(1.0 / self.signal_hz, self._tick)
         self._rng = np.random.default_rng(self.seed)
         self._t0 = self.get_clock().now().nanoseconds * 1e-9
         self.get_logger().info(
-            f'Publishing /neil/signal @ {self.signal_hz:.1f} Hz '
+            f'Publishing /grader/signal @ {self.signal_hz:.1f} Hz '
             f'(f1={self.f1} Hz, f2={self.f2} Hz, noise_std={self.noise_std})'
         )
 

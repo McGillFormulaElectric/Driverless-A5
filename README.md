@@ -3,7 +3,7 @@
 This assignment introduces ROS 2 publishers, subscribers, namespaces, and DDS discovery. It is split into two parts: Part 1 is a warm-up, Part 2 is the real challenge.
 
 - **A5.1** — publish `Hello World!` on your own namespaced topic.
-- **A5.2** — subscribe to a noisy signal, filter it with a first-order IIR low-pass filter, and publish your filtered output. The grader runs locally alongside your code and auto-discovers your topic, reporting back on `/neil/feedback` whether you got it right.
+- **A5.2** — subscribe to a noisy signal, filter it with a first-order IIR low-pass filter, and publish your filtered output. The grader runs locally alongside your code and auto-discovers your topic, reporting back on `/grader/feedback` whether you got it right.
 
 Everything runs inside a Docker container using `docker-compose-local.yml`.
 
@@ -71,25 +71,24 @@ Open `ros2_ws/src/a5_new_member/a5_new_member/hello_publisher.py`. The node, pub
 ros2 launch a5_new_member hello.launch.py github_user:=$GITHUB_USER
 ```
 
-Neil's grader is watching for any topic matching `/<user>/hello` (type `std_msgs/String`). When it sees `Hello World!` from your namespace, it will publish on `/neil/feedback`:
+Neil's grader is watching for any topic matching `/<user>/hello` (type `std_msgs/String`). When it sees `Hello World!` from your namespace, it will publish on `/grader/feedback`:
 
 ```
 Hello <your-github-user>
 ```
 
-Watch the feedback live from another terminal (inside the container). `/neil/feedback` is shared by every student on the tailnet, so once the class is connected simultaneously you'll want to filter to just your own handle:
+Watch the feedback live from another terminal (inside the container):
 ```bash
-ros2 topic echo /neil/feedback | grep --line-buffered "$GITHUB_USER"
+ros2 topic echo /grader/feedback
 ```
-(Drop the `grep` to see everyone's verdicts — useful for confirming the grader is alive at all.)
 
-**Deliverable for A5.1:** a screenshot of `/neil/feedback` congratulating your GitHub handle, committed to your branch under `submissions/a5_1_feedback.png`.
+**Deliverable for A5.1:** a screenshot of `/grader/feedback` congratulating your GitHub handle, committed to your branch under `submissions/a5_1_feedback.png`.
 
 ---
 
 ## 3. A5.2 — Low-pass filter Neil's signal
 
-Neil publishes a deterministic-but-noisy waveform on `/neil/signal` (`std_msgs/Float32`):
+Neil publishes a deterministic-but-noisy waveform on `/grader/signal` (`std_msgs/Float32`):
 
 ```
 x(t) = 1.0 * sin(2π * 0.5 * t) + 0.6 * sin(2π * 5.0 * t) + N(0, 0.3²)
@@ -119,14 +118,14 @@ source install/setup.bash
 ros2 launch a5_new_member lpf.launch.py github_user:=$GITHUB_USER
 ```
 
-Watch your verdict the same way as A5.1 (see §2) — `ros2 topic echo /neil/feedback | grep --line-buffered "$GITHUB_USER"` in another terminal.
+Watch your verdict the same way as A5.1 (see §2) — `ros2 topic echo /grader/feedback` in another terminal.
 
 ### How grading works
 Neil's grader:
-1. Subscribes to `/neil/signal` and runs **the same** LPF (α = 0.1, y[0] = x[0]) to build a reference sequence.
+1. Subscribes to `/grader/signal` and runs **the same** LPF (α = 0.1, y[0] = x[0]) to build a reference sequence.
 2. Discovers any `/<user>/answer` topic on the network and buffers the last 200 samples per student.
 3. Matches student samples to the reference by nearest receive-time and computes MSE.
-4. If MSE < 0.02, publishes on `/neil/feedback`:
+4. If MSE < 0.02, publishes on `/grader/feedback`:
    ```
    Congratulations <your-github-user> you got the correct LPF value
    ```
@@ -137,7 +136,7 @@ Neil's grader:
 
 Feedback is republished on every grading tick (~every 2s) while your `/answer` topic is live, so it always reflects your current state — fix your filter and you'll see it flip to "correct" without needing to restart anything.
 
-**Deliverable for A5.2:** screenshot of `/neil/feedback` congratulating your handle (MSE value visible), committed as `submissions/a5_2_feedback.png`, plus your finished `lpf_node.py`.
+**Deliverable for A5.2:** screenshot of `/grader/feedback` congratulating your handle (MSE value visible), committed as `submissions/a5_2_feedback.png`, plus your finished `lpf_node.py`.
 
 ---
 
@@ -158,11 +157,11 @@ Download from <https://foxglove.dev/download> (free, works on Linux/macOS/Window
 
 ### 4.3 Connect
 1. Open Foxglove Studio → **Open connection…** → **Foxglove WebSocket**.
-2. URL: `ws://localhost:8765` (or `ws://<your-tailscale-host>:8765` from another machine on the tailnet).
+2. URL: `ws://localhost:8765` (or `ws://<host-ip>:8765` from another machine).
 3. Add a **Plot** panel.
-   - Series 1: topic `/neil/signal`, path `data`, color red.
+   - Series 1: topic `/grader/signal`, path `data`, color red.
    - Series 2: topic `/${GITHUB_USER}/answer`, path `data`, color green.
-4. Add a **Raw Messages** panel on `/neil/feedback` to see verdicts as they arrive.
+4. Add a **Raw Messages** panel on `/grader/feedback` to see verdicts as they arrive.
 
 You should see the green (filtered) curve tracking the low-frequency component of the red (noisy) signal while attenuating the 5 Hz sinusoid — that's the LPF working.
 
@@ -174,8 +173,8 @@ You should see the green (filtered) curve tracking the low-frequency component o
 
 | Topic              | Type              | Owner   | Purpose                            |
 | ------------------ | ----------------- | ------- | ---------------------------------- |
-| `/neil/signal`     | `std_msgs/Float32` | Neil    | Noisy input for A5.2               |
-| `/neil/feedback`   | `std_msgs/String`  | Neil    | Per-student grading verdict        |
+| `/grader/signal`     | `std_msgs/Float32` | Neil    | Noisy input for A5.2               |
+| `/grader/feedback`   | `std_msgs/String`  | Neil    | Per-student grading verdict        |
 | `/<user>/hello`    | `std_msgs/String`  | Student | A5.1 output                        |
 | `/<user>/answer`   | `std_msgs/Float32` | Student | A5.2 output (your filtered signal) |
 
@@ -204,7 +203,7 @@ Driverless-AA5/
 
 ## 7. Troubleshooting
 
-- **`ros2 topic list` doesn't show `/neil/signal`.** DDS discovery isn't reaching Neil. Confirm `tailscale ping <neil-host>` works, that `A2_NEIL_HOST` is set, and that `ROS_DOMAIN_ID` matches (`42`).
+- **`ros2 topic list` doesn't show `/grader/signal`.** DDS discovery isn't reaching Neil. Confirm both containers are running, that `A2_NEIL_HOST` is set, and that `ROS_DOMAIN_ID` matches (`42`).
 - **You see your own topics but no one else's.** Check `RMW_IMPLEMENTATION=rmw_cyclonedds_cpp` inside the container (`env | grep RMW`).
 - **Grader keeps saying incorrect.** Confirm α = 0.1, that you initialise `y[0] = x[0]` (not zero), and that you're publishing on `/<GITHUB_USER>/answer` (not `~answer` or `/answer`).
 
@@ -222,7 +221,7 @@ Committing screenshots to `submissions/` on your branch is only half the workflo
 3. **PR title:** `A2 submission — <Your Name>`.
 4. **PR body** must include:
    - Your GitHub handle.
-   - The screenshot of `/neil/feedback` congratulating you for A5.1 (drag-and-drop into the PR body, or reference it as `![A5.1](submissions/a5_1_feedback.png)`).
+   - The screenshot of `/grader/feedback` congratulating you for A5.1 (drag-and-drop into the PR body, or reference it as `![A5.1](submissions/a5_1_feedback.png)`).
    - The screenshot for A5.2 with the MSE value visible.
    - A one-paragraph reflection: what surprised you about DDS or the filter?
 5. Neil (or a designated senior) reviews the PR:
