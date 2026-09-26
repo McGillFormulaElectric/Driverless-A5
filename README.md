@@ -1,21 +1,13 @@
-# MFE Driverless — Assignment 5: Path planning + pure-pursuit control
+# MFE Driverless — Assignment 5: ROS 2 pub / sub with Local Grading
 
-This is the capstone of the onboarding series. You've done YOLO (A1), ROS 2
-pub/sub + IIR filtering (A2), TF2 (A3), and EKF (A4). Now you get to actually
-**drive** a car around a track. Neil runs a lightweight 2D bicycle
-sim on the class Tailscale network, publishes a cone map, and grades every
-student's laps live.
+This assignment introduces ROS 2 publishers, subscribers, namespaces, and DDS discovery. It is split into two parts: Part 1 is a warm-up, Part 2 is the real challenge.
 
-Like the earlier assignments this is split [Advent-of-Code style](https://adventofcode.com/):
+- **A5.1** — publish `Hello World!` on your own namespaced topic.
+- **A5.2** — subscribe to a noisy signal, filter it with a first-order IIR low-pass filter, and publish your filtered output. The grader runs locally alongside your code and auto-discovers your topic, reporting back on `/neil/feedback` whether you got it right.
 
-- **A5.1** — subscribe to the cone map, compute the ordered centerline, and
-  publish it as a `nav_msgs/Path`.
-- **A5.2** — implement a **pure-pursuit** lateral controller and a simple
-  speed schedule so your car completes at least one clean lap of the track
-  in under 60 s.
+Everything runs inside a Docker container using `docker-compose-local.yml`.
 
-Everything runs inside a Docker container so your local OS / Python version
-don't matter.
+> **Grading Setup** — The grader runs as a local Docker service alongside your student code. Both use host networking and ROS domain ID 42 for automatic DDS discovery.
 
 ---
 
@@ -28,34 +20,26 @@ don't matter.
 
 ```bash
 git clone <repo-url>
-cd Driverless-A5
+cd Driverless-AA5
 git checkout <FirstNameLastName>
 ```
 
-### 1.2 Tailscale (class VPN)
-Neil runs the sim + grader on the class Tailscale network. Every
-student joins the same tailnet so DDS discovery works between machines.
-
-1. Install Tailscale: <https://tailscale.com/download>.
-2. `sudo tailscale up` and sign in with the invite Neil sent.
-3. Verify: `tailscale ping neil` (hostname will be shared in class).
-4. Note your own Tailscale hostname/IP — you'll set it via env var if
-   auto-detection fails.
-
-### 1.3 Docker
-Linux host with Docker + Docker Compose is the supported path (host
-networking + Tailscale interface work cleanly).
+### 1.2 Docker & Local Grading
+The grader runs as a local service inside Docker alongside your student code. Both use host networking and ROS domain ID 42 for automatic DDS discovery.
 
 ```bash
 cd docker
-export GITHUB_USER=<your-github-handle>              # required
-export A5_NEIL_HOST=<professor tailnet host>    # e.g. neil.tail1234.ts.net
-docker compose build
-docker compose run --rm student
+docker compose -f docker-compose-local.yml build
+docker compose -f docker-compose-local.yml up -d
 ```
 
-Inside the container you'll have `/workspace` mounted to `ros2_ws/`. Build
-and source:
+This starts two services:
+1. **student** — your code (subscriber + publisher)
+2. **grader** — reference implementation (signal publisher + grader)
+
+Both services share the same network and ROS domain, so topics auto-discover via DDS.
+
+Inside either container, the workspace is mounted at `/workspace` (your `ros2_ws`). Build and source:
 
 ```bash
 cd /workspace
@@ -63,212 +47,213 @@ colcon build --symlink-install
 source install/setup.bash
 ```
 
-> **macOS/Windows caveat:** Docker Desktop's `network_mode: host` is limited.
-> If you're not on Linux, run the container with `--network host` on a Linux
-> VM, or use Tailscale's [userspace networking mode](https://tailscale.com/kb/1112/userspace-networking)
-> inside the container.
+View logs from either service:
+```bash
+docker compose -f docker-compose-local.yml logs student -f  # tail student logs
+docker compose -f docker-compose-local.yml logs grader -f   # tail grader logs
+docker compose -f docker-compose-local.yml logs             # both services
+```
+
+Stop everything:
+```bash
+docker compose -f docker-compose-local.yml down
+```
 
 ---
 
-## 2. Topic contract
+## 2. A5.1 — Hello World! (warm-up)
 
-| Topic                   | Type                             | Owner    | QoS                           | Purpose                                |
-| ----------------------- | -------------------------------- | -------- | ----------------------------- | -------------------------------------- |
-| `/neil/cone_map`   | `geometry_msgs/PoseArray`        | Neil | RELIABLE + TRANSIENT_LOCAL    | Latched cone map (blue + yellow)       |
-| `/neil/sim_stats`  | `std_msgs/String` (JSON)         | Neil | RELIABLE + TRANSIENT_LOCAL    | Per-user lap / cone-hit stats for grader |
-| `/neil/feedback`   | `std_msgs/String`                | Neil | RELIABLE                      | Per-student grading verdict            |
-| `/<user>/state`         | `nav_msgs/Odometry`              | Neil | RELIABLE                      | Sim state of *this* student's car      |
-| `/<user>/centerline`    | `nav_msgs/Path`                  | Student  | RELIABLE                      | A5.1 output                            |
-| `/<user>/cmd`           | `ackermann_msgs/AckermannDrive`  | Student  | RELIABLE                      | A5.2 output (drive commands, 50 Hz)    |
+**Goal:** publish the string `Hello World!` on `/${GITHUB_USER}/hello` at 1 Hz.
 
-All pubs/subs use the class-standard QoS
-`QoSProfile(reliability=RELIABLE, history=KEEP_LAST, depth=10)`. The two
-latched topics additionally set `durability=TRANSIENT_LOCAL` — your
-subscriber must match that durability or DDS will silently drop the
-connection. See `a5_new_member/planner_node.py` for a working example.
+Open `ros2_ws/src/a5_new_member/a5_new_member/hello_publisher.py`. The node, publisher, and timer are already wired up — there's a `TODO` block inside `_tick` where you build and publish a `std_msgs/String`. If you're new to ROS 2 publishers, see the [ROS2 Industrial Workshop — Simple Publisher/Subscriber](https://ros2-industrial-workshop.readthedocs.io/en/latest/_source/basics/ROS2-Simple-Publisher-Subscriber.html). Then launch it with your GitHub username as the ROS namespace:
 
-### 2.1 Cone-color encoding
-Neil's sim packs cone color into a `geometry_msgs/Pose` because
-`PoseArray` is a stock message type:
-
-```
-pose.position.x, pose.position.y  ->  cone position in the map frame
-pose.orientation.z == 0.0         ->  blue  (left boundary)
-pose.orientation.z == 1.0         ->  yellow (right boundary)
-pose.orientation.w == 1.0         ->  constant filler
+```bash
+ros2 launch a5_new_member hello.launch.py github_user:=$GITHUB_USER
 ```
 
-**This is not a valid quaternion.** Do not try to interpret it as a
-rotation. It's a compact per-cone label; parse it as such (see
-`planner_node.py::_on_cones`).
+Neil's grader is watching for any topic matching `/<user>/hello` (type `std_msgs/String`). When it sees `Hello World!` from your namespace, it will publish on `/neil/feedback`:
 
-### 2.2 Vehicle / sim parameters (matches MFE-Driverless-V1)
-- Wheelbase `L = 1.56 m`
-- `|steering_angle| <= 0.5 rad` (clamped by the sim)
-- `0 <= speed <= 15 m/s` (clamped by the sim)
-- Sim integrator: standard bicycle kinematics at 50 Hz
-  (`x += v cos θ dt; y += v sin θ dt; θ += v/L tan δ dt`)
-- Cone hit radius: `0.4 m`
+```
+Hello <your-github-user>
+```
+
+Watch the feedback live from another terminal (inside the container). `/neil/feedback` is shared by every student on the tailnet, so once the class is connected simultaneously you'll want to filter to just your own handle:
+```bash
+ros2 topic echo /neil/feedback | grep --line-buffered "$GITHUB_USER"
+```
+(Drop the `grep` to see everyone's verdicts — useful for confirming the grader is alive at all.)
+
+**Deliverable for A5.1:** a screenshot of `/neil/feedback` congratulating your GitHub handle, committed to your branch under `submissions/a5_1_feedback.png`.
 
 ---
 
-## 3. A5.1 — Centerline planning
+## 3. A5.2 — Low-pass filter Neil's signal
 
-**Goal:** subscribe to `/neil/cone_map`, compute the ordered centerline
-of the track, and publish it on `/${GITHUB_USER}/centerline`
-(`nav_msgs/Path`, `map` frame). Grader threshold: **every point within
-1.0 m of the true centerline, and at least 30 points.**
+Neil publishes a deterministic-but-noisy waveform on `/neil/signal` (`std_msgs/Float32`):
 
-Template in `ros2_ws/src/a5_new_member/a5_new_member/planner_node.py`. The
-`TODO(student)` block inside `_compute_centerline` is where you fill in the
-plan. A minimal approach:
+```
+x(t) = 1.0 * sin(2π * 0.5 * t) + 0.6 * sin(2π * 5.0 * t) + N(0, 0.3²)
+```
 
-1. For each blue cone, find its nearest yellow cone.
-2. Midpoint of that pair = raw centerline point.
-3. Order the midpoints (greedy nearest-neighbour is fine on this track).
-4. Publish as `Path`.
+Your job is to **subscribe** to it, apply a **first-order IIR low-pass filter**, and **publish** the filtered value on `/${GITHUB_USER}/answer` (`std_msgs/Float32`).
 
-If you're feeling ambitious, use `scipy.spatial.Delaunay` on the combined
-cone set and keep only the edges that connect a blue to a yellow cone.
-Either passes.
+### The filter (exact spec — do not change α)
+
+```
+y[n] = α · x[n] + (1 − α) · y[n − 1]
+y[0] = x[0]
+α    = 0.1
+```
+
+This is the same "exponential moving average" you'll see in most sensor pipelines. Theory refs:
+- Wikipedia — [Infinite impulse response](https://en.wikipedia.org/wiki/Infinite_impulse_response) and [Exponential smoothing](https://en.wikipedia.org/wiki/Exponential_smoothing).
+- Smith, *The Scientist and Engineer's Guide to DSP*, [Ch. 19 — Recursive Filters](https://www.dspguide.com/ch19.htm) (free online).
+
+### Where to put your code
+Open `ros2_ws/src/a5_new_member/a5_new_member/lpf_node.py`. There's a `TODO` block inside `_on_signal`. Replace the stub with the IIR recurrence above.
 
 ### Run it
 ```bash
 colcon build --symlink-install
 source install/setup.bash
-ros2 launch a5_new_member planner.launch.py github_user:=$GITHUB_USER
+ros2 launch a5_new_member lpf.launch.py github_user:=$GITHUB_USER
 ```
 
-Watch for the verdict:
-```bash
-ros2 topic echo /neil/feedback
-```
+Watch your verdict the same way as A5.1 (see §2) — `ros2 topic echo /neil/feedback | grep --line-buffered "$GITHUB_USER"` in another terminal.
 
-You should see:
-```
-[A5.1] Congrats <your-github-user>, the answer is correct
-```
+### How grading works
+Neil's grader:
+1. Subscribes to `/neil/signal` and runs **the same** LPF (α = 0.1, y[0] = x[0]) to build a reference sequence.
+2. Discovers any `/<user>/answer` topic on the network and buffers the last 200 samples per student.
+3. Matches student samples to the reference by nearest receive-time and computes MSE.
+4. If MSE < 0.02, publishes on `/neil/feedback`:
+   ```
+   Congratulations <your-github-user> you got the correct LPF value
+   ```
+   Otherwise:
+   ```
+   Sorry <your-github-user>, the answer is incorrect (MSE=0.4127)
+   ```
+
+Feedback is republished on every grading tick (~every 2s) while your `/answer` topic is live, so it always reflects your current state — fix your filter and you'll see it flip to "correct" without needing to restart anything.
+
+**Deliverable for A5.2:** screenshot of `/neil/feedback` congratulating your handle (MSE value visible), committed as `submissions/a5_2_feedback.png`, plus your finished `lpf_node.py`.
 
 ---
 
-## 4. A5.2 — Pure-pursuit driving
+## 4. Visualizing with Foxglove Studio (optional but strongly recommended)
 
-**Goal:** subscribe to your own `/${GITHUB_USER}/centerline` and
-`/${GITHUB_USER}/state`, and publish drive commands on
-`/${GITHUB_USER}/cmd` at 50 Hz using a **pure-pursuit** lateral controller
-plus a simple curvature-scheduled speed profile.
+Seeing the raw signal and your filtered signal on the same plot makes it obvious what your filter is doing wrong.
 
-Grader threshold: **>= 1 complete lap in <= 60 s with zero cone hits.**
-
-Template in `ros2_ws/src/a5_new_member/a5_new_member/controller_node.py`. The
-`TODO(student)` block inside `_pure_pursuit` walks you through the algorithm:
-
-1. Find the closest waypoint.
-2. Walk forward along the path until you find the first waypoint
-   `>= LOOKAHEAD` away (loop around the end). That's the goal.
-3. Transform the goal into the vehicle body frame.
-4. Steering: `delta = atan2(2 * WHEELBASE_L * local_y, LOOKAHEAD**2)`.
-5. Speed: back off `MAX_SPEED` as the local curvature grows.
-
-Sensible starting values: `LOOKAHEAD = 4 m`, `MIN_SPEED = 3 m/s`,
-`MAX_SPEED = 10 m/s`. Tuning is fair game.
-
-### References
-- Wikipedia — [Pure pursuit](https://en.wikipedia.org/wiki/Pure_pursuit).
-- Coulter, R. C. (1992). *Implementation of the Pure Pursuit Path Tracking
-  Algorithm* (CMU-RI-TR-92-01).
-
-### Run it
+### 4.1 Install the Foxglove bridge inside the container
+Already available in the image:
 ```bash
-colcon build --symlink-install
-source install/setup.bash
-ros2 launch a5_new_member controller.launch.py github_user:=$GITHUB_USER
-```
-
-This launch file brings up both the planner and the controller. Watch:
-```bash
-ros2 topic echo /neil/feedback
-```
-
-Expected verdict:
-```
-[A5.2] Congrats <your-github-user>, the answer is correct
-```
-
-Don't be discouraged by `[A5.2] Sorry ... (laps=0, cone_hits=0, last_lap_time=None)` right after you launch — that's expected, not a failure. A clean lap takes roughly 20 seconds, and the grader can't report `laps=1` until your car has actually finished one. If your controller is working, this flips to `Congrats` on its own once the first lap completes; you don't need to restart anything.
-
----
-
-## 5. Visualizing with Foxglove Studio (strongly recommended)
-
-Watching your car crash into cones is the fastest way to debug a bad
-pure-pursuit gain.
-
-### 5.1 Bridge (inside the container)
-```bash
+apt-get install -y ros-humble-foxglove-bridge   # only if you rebuild the image
 ros2 run foxglove_bridge foxglove_bridge port:=8765
 ```
 Leave that terminal running.
 
-### 5.2 Studio (on your host)
-Download from <https://foxglove.dev/download>.
+### 4.2 Install Foxglove Studio on your host
+Download from <https://foxglove.dev/download> (free, works on Linux/macOS/Windows).
 
-### 5.3 Connect
-1. Open Foxglove Studio -> **Open connection...** -> **Foxglove WebSocket**.
-2. URL: `ws://localhost:8765` (or `ws://<your-tailscale-host>:8765`).
-3. Add a **3D** panel. Recommended layers:
-   - `/neil/cone_map` (PoseArray). Color the arrows by
-     `orientation.z` if you want blue/yellow to render correctly.
-   - `/<GITHUB_USER>/state` (Odometry) — your car.
-   - `/<GITHUB_USER>/centerline` (Path) — your planned line.
-4. Add a **Raw Messages** panel on `/neil/feedback` for verdicts.
+### 4.3 Connect
+1. Open Foxglove Studio → **Open connection…** → **Foxglove WebSocket**.
+2. URL: `ws://localhost:8765` (or `ws://<your-tailscale-host>:8765` from another machine on the tailnet).
+3. Add a **Plot** panel.
+   - Series 1: topic `/neil/signal`, path `data`, color red.
+   - Series 2: topic `/${GITHUB_USER}/answer`, path `data`, color green.
+4. Add a **Raw Messages** panel on `/neil/feedback` to see verdicts as they arrive.
 
-> Tip: save your layout to `submissions/a5_layout.json`
-> (**Layout -> Export**) so future teammates can reuse it.
+You should see the green (filtered) curve tracking the low-frequency component of the red (noisy) signal while attenuating the 5 Hz sinusoid — that's the LPF working.
+
+> Tip: save your Foxglove layout to `submissions/a5_layout.json` (**Layout → Export**) so future assignments can reuse it.
+
+---
+
+## 5. Topic contract (summary)
+
+| Topic              | Type              | Owner   | Purpose                            |
+| ------------------ | ----------------- | ------- | ---------------------------------- |
+| `/neil/signal`     | `std_msgs/Float32` | Neil    | Noisy input for A5.2               |
+| `/neil/feedback`   | `std_msgs/String`  | Neil    | Per-student grading verdict        |
+| `/<user>/hello`    | `std_msgs/String`  | Student | A5.1 output                        |
+| `/<user>/answer`   | `std_msgs/Float32` | Student | A5.2 output (your filtered signal) |
 
 ---
 
 ## 6. Layout
 
 ```
-Driverless-A5/
-├── docker/                          # Dockerfile, compose, CycloneDDS config, entrypoint
+Driverless-AA5/
+├── docker/
+│   ├── docker-compose-local.yml  # Two services: student + grader
+│   ├── Dockerfile                # ROS2 Humble + dependencies
+│   ├── entrypoint.sh             # Startup script (socket buffer config)
+│   └── cyclonedds.xml            # DDS discovery config
 ├── ros2_ws/
 │   └── src/
-│       ├── a5_new_member/              # your template — this is where you write code
-│       │   ├── a5_new_member/planner_node.py     (A5.1)
-│       │   ├── a5_new_member/controller_node.py  (A5.2)
-│       │   └── launch/{planner,controller}.launch.py
-│       └── a5_neil/            # for reference; not run by students
-│           ├── a5_neil/sim_node.py       (bicycle sim + cone map)
-│           ├── a5_neil/grader.py         (verdicts on /neil/feedback)
-│           ├── config/track.yaml              (~40 cones, closed loop)
-│           └── launch/neil.launch.py
+│       ├── a5_new_member/        # your template — write code here
+│       └── a5_grader/            # grader (runs as local service in docker-compose)
+│           ├── a5_grader/        # Python package
+│           ├── config/           # params.yaml
+│           ├── launch/           # neil.launch.py
+│           ├── setup.py
+│           └── package.xml
 └── README.md
 ```
 
 ## 7. Troubleshooting
 
-- **`ros2 topic list` doesn't show `/neil/cone_map`.** DDS discovery
-  isn't reaching Neil's node. Confirm `tailscale ping <professor-host>`
-  works, `A5_NEIL_HOST` is set, and `ROS_DOMAIN_ID` matches (`42`).
-- **`ros2 topic echo /neil/cone_map` prints nothing forever.** Your
-  subscription's QoS is likely mismatched. `/neil/cone_map` is
-  latched with `TRANSIENT_LOCAL` — use `--qos-durability transient_local`
-  on the CLI, and in code copy the `LATCHED_QOS` profile from
-  `planner_node.py`.
-- **Sim state topic `/<user>/state` never appears.** The professor spawns
-  a sim for you only after it discovers your `/<user>/cmd` topic. Start
-  publishing (even zeros) from the controller and wait ~2 s.
-- **You complete a lap but the grader still says incorrect.** Check
-  `/neil/sim_stats` — it publishes JSON per user. If `cone_hits > 0`
-  the lap doesn't count.
+- **`ros2 topic list` doesn't show `/neil/signal`.** DDS discovery isn't reaching Neil. Confirm `tailscale ping <neil-host>` works, that `A2_NEIL_HOST` is set, and that `ROS_DOMAIN_ID` matches (`42`).
+- **You see your own topics but no one else's.** Check `RMW_IMPLEMENTATION=rmw_cyclonedds_cpp` inside the container (`env | grep RMW`).
+- **Grader keeps saying incorrect.** Confirm α = 0.1, that you initialise `y[0] = x[0]` (not zero), and that you're publishing on `/<GITHUB_USER>/answer` (not `~answer` or `/answer`).
 
 ---
 
-## 8. Submission
+## 8. Submitting via Pull Request
+
+Committing screenshots to `submissions/` on your branch is only half the workflow. The class repo uses pull requests + review for every landed change, and this assignment is your first practice PR. Follow these steps end-to-end.
+
+1. Push your `FirstNameLastName` branch to GitHub:
+   ```bash
+   git push -u origin FirstNameLastName
+   ```
+2. On GitHub, open a PR from `<your-branch>` → `main`.
+3. **PR title:** `A2 submission — <Your Name>`.
+4. **PR body** must include:
+   - Your GitHub handle.
+   - The screenshot of `/neil/feedback` congratulating you for A5.1 (drag-and-drop into the PR body, or reference it as `![A5.1](submissions/a5_1_feedback.png)`).
+   - The screenshot for A5.2 with the MSE value visible.
+   - A one-paragraph reflection: what surprised you about DDS or the filter?
+5. Neil (or a designated senior) reviews the PR:
+   - Screenshots must show your handle in the feedback string.
+   - On approval, they close the PR **without merging**.
+6. That's it — the PR is your record of having completed A5. It never lands on `main`: merging would ship your working `hello_publisher.py`/`lpf_node.py` as the template, handing the answer to every student who clones this repo afterward.
+
+> **Why bother with a PR if it doesn't merge?** The PR is how you practice the real MFE workflow — every change to `MFE-Driverless-V1` lands via PR + review, no exceptions. This assignment mimics that process end-to-end (branch, push, PR, review); the merge step is the one part intentionally skipped, so the template stays answer-free for the next student.
+
+### What reviewers look for
+
+- Node runs without exceptions inside the container.
+- Screenshots prove the auto-grader accepted your new_member.
+- No secrets or personal paths committed.
+- Reasonable commit messages.
+
+---
+
+## 9. Submission
 1. Commit your changes to your `FirstNameLastName` branch.
-2. Include both feedback screenshots in `submissions/`:
-   - `submissions/a5_1_feedback.png`
-   - `submissions/a5_2_feedback.png`
-3. Open a pull request against `main`.
+2. Include both feedback screenshots in `submissions/`.
+3. Open a pull request against `main` when done (see section 8 for the full workflow).
+
+---
+
+## 10. Parameters
+
+The scenario constants (signal frequencies/amplitudes, noise, filter α, grader tolerances, timer periods) are exposed as ROS parameters and loaded from YAML at launch time. You should not need to edit them for the graded assignment, but tweaking them locally is a useful way to build intuition (e.g. crank up `noise_std` and watch your MSE climb).
+
+- Grader side: [`ros2_ws/src/a5_grader/config/params.yaml`](ros2_ws/src/a5_grader/config/params.yaml) — `signal_hz`, `f1`, `a1`, `f2`, `a2`, `noise_std`, `seed` (for `signal_publisher`); `alpha`, `match_window`, `mse_tolerance`, `discovery_period_s`, `grade_period_s` (for `grader`).
+- Student side: [`ros2_ws/src/a5_new_member/config/params.yaml`](ros2_ws/src/a5_new_member/config/params.yaml) — `alpha` (fixed at `0.1` for grading; do **not** change for your submission).
+
+The launch files (`neil.launch.py`, `lpf.launch.py`) pass the YAML file into each node via the `parameters=[...]` argument, so `ros2 launch` picks them up automatically.
+
