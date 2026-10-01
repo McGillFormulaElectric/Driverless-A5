@@ -1,47 +1,24 @@
-# Two compose services:
-#   tailscale  — joins the MFE tailnet (sidecar, works on macOS + Linux)
-#   new_member — ROS 2 node, shares tailscale's network namespace
-#
-# Usage:
-#   docker compose up -d tailscale     # start tailscale sidecar first
-#   docker compose run --rm new_member # then run your ROS node
+version: '3.8'
 
 services:
-  tailscale:
-    image: tailscale/tailscale:latest
-    hostname: ${GITHUB_USER:-new-member}
-    environment:
-      - TS_AUTHKEY=${TS_AUTHKEY:?set TS_AUTHKEY in docker/.env}
-      - TS_HOSTNAME=${GITHUB_USER:-new-member}
-      - TS_STATE_DIR=/var/lib/tailscale
-      - TS_USERSPACE=false
-    cap_add:
-      - NET_ADMIN
-      - NET_RAW
-    devices:
-      - /dev/net/tun:/dev/net/tun
-    volumes:
-      - tailscale-state:/var/lib/tailscale
-    restart: unless-stopped
-
-  new_member:
+  a5:
     build:
       context: .
-    image: mfe/a5:humble
-    network_mode: "service:tailscale"
+    image: mfe/a2:humble
+    network_mode: "host"
     environment:
       - ROS_DOMAIN_ID=42
       - RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
-      - GITHUB_USER=${GITHUB_USER:?set GITHUB_USER in docker/.env}
-      - A5_NEIL_HOST=${A5_NEIL_HOST:-neil-ubuntu-desktop}
     volumes:
       - ../ros2_ws:/workspace
     working_dir: /workspace
-    stdin_open: true
-    tty: true
-    depends_on:
-      - tailscale
-    command: bash
-
-volumes:
-  tailscale-state:
+    command: >
+      bash -c "
+        source /opt/ros/humble/setup.bash &&
+        colcon build --symlink-install &&
+        source install/setup.bash &&
+        ros2 launch a5_grader grader.launch.py &
+        sleep 3 &&
+        ros2 run a5_new_member hello_publisher --ros-args -r __ns:=/student &
+        ros2 launch a5_new_member lpf.launch.py github_user:=student
+      "
