@@ -13,8 +13,8 @@
   <depend>nav_msgs</depend>
   <depend>ackermann_msgs</depend>
 
-  <!-- bringup.launch.py includes neil.launch.py; only needed at runtime. -->
-  <exec_depend>a5_neil</exec_depend>
+  <!-- bringup.launch.py includes grader.launch.py; only needed at runtime. -->
+  <exec_depend>a5_grader</exec_depend>
 
   <test_depend>ament_copyright</test_depend>
   <test_depend>ament_flake8</test_depend>
