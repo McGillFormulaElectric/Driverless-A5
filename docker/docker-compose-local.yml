@@ -1,7 +1,7 @@
 version: '3.8'
 
 services:
-  student:
+  a5:
     build:
       context: .
     image: mfe/a2:humble
@@ -9,8 +9,6 @@ services:
     environment:
       - ROS_DOMAIN_ID=42
       - RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
-      - GITHUB_USER=student
-      - A2_NEIL_HOST=127.0.0.1
     volumes:
       - ../ros2_ws:/workspace
     working_dir: /workspace
@@ -19,25 +17,8 @@ services:
         source /opt/ros/humble/setup.bash &&
         colcon build --symlink-install &&
         source install/setup.bash &&
+        ros2 launch a5_grader neil.launch.py &
+        sleep 3 &&
+        ros2 run a5_new_member hello_publisher --ros-args -r __ns:=/student &
         ros2 launch a5_new_member lpf.launch.py github_user:=student
-      "
-
-  grader:
-    build:
-      context: .
-    image: mfe/a2:humble
-    network_mode: "host"
-    environment:
-      - ROS_DOMAIN_ID=42
-      - RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
-      - GITHUB_USER=grader
-    volumes:
-      - ../ros2_ws:/workspace
-    working_dir: /workspace
-    command: >
-      bash -c "
-        source /opt/ros/humble/setup.bash &&
-        colcon build --symlink-install &&
-        source install/setup.bash &&
-        ros2 launch a5_grader neil.launch.py
       "
