@@ -220,3 +220,21 @@ All constants are exposed as ROS parameters in YAML files:
 
 You should not edit grader parameters. For student parameters, start with suggested values and tune if needed. The launch files load these automatically.
 
+---
+
+## 🔴 NEIL REFERENCE
+
+**To view complete solutions for this assignment:**
+
+```bash
+# View the reference implementation on the solution branch
+git checkout solution/a5-student-code
+
+# Or clone directly from the solution branch for testing
+git clone -b solution/a5-student-code <repo-url>
+```
+
+**Solution Branch Reference:** [`solution/a5-student-code`](https://github.com/McGillFormulaElectric/Driverless-A5/tree/solution/a5-student-code)
+
+**Pull Request:** [PR #2 - A5 Solution](https://github.com/McGillFormulaElectric/Driverless-A5/pull/2)
+
