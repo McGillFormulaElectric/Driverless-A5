@@ -1,33 +1,25 @@
-"""Auto-discovery grader for MFE A2.
+"""Auto-discovery grader for MFE A5.
 
-Periodically scans the ROS graph for topics matching:
-  - /<user>/hello   (std_msgs/String)   -> A2.1
-  - /<user>/answer  (std_msgs/Float32)  -> A2.2
+Grades:
+  - A5.1: /<user>/centerline (nav_msgs/Path) — path planning
+  - A5.2: /<user>/cmd (ackermann_msgs/AckermannDrive) — pure-pursuit controller
 
-For each newly-seen topic it creates a subscription. It also subscribes to
-Neil's own /grader/signal so it can run the *reference* LPF and compare each
-student's stream against the expected output.
+Feedback published on /grader/feedback (std_msgs/String).
 
-Feedback is published on /grader/feedback (std_msgs/String) as either:
-    'Congrats <user>, the answer is correct'
-    'Sorry <user>, the answer is incorrect'
-The message is only republished when a student transitions between states.
-
-params: alpha, match_window, mse_tolerance, discovery_period_s, grade_period_s
-        (see a2_neil/config/params.yaml).
+params: discovery_period_s, grade_period_s
 """
 from __future__ import annotations
 
 import re
-from collections import deque
-from dataclasses import dataclass, field
-from typing import Deque
+from dataclasses import dataclass
+from typing import Optional
 
-import numpy as np
 import rclpy
 from rclpy.node import Node
 from rclpy.qos import QoSProfile, QoSReliabilityPolicy, QoSHistoryPolicy
-from std_msgs.msg import Float32, String
+from nav_msgs.msg import Path
+from ackermann_msgs.msg import AckermannDrive
+from std_msgs.msg import String
 
 RELIABLE_QOS = QoSProfile(
     reliability=QoSReliabilityPolicy.RELIABLE,
@@ -35,149 +27,108 @@ RELIABLE_QOS = QoSProfile(
     depth=10,
 )
 
-HELLO_RE = re.compile(r'^/([^/]+)/hello$')
-ANSWER_RE = re.compile(r'^/([^/]+)/answer$')
-RESERVED_USERS = {'neil'}
+CENTERLINE_RE = re.compile(r'^/([^/]+)/centerline$')
+CMD_RE = re.compile(r'^/([^/]+)/cmd$')
+RESERVED_USERS = {'grader'}
 
 
 @dataclass
-class HelloState:
-    last_verdict: str | None = None  # 'correct' | 'incorrect' | None
+class PathState:
+    last_msg: Optional[Path] = None
+    message_count: int = 0
 
 
 @dataclass
-class AnswerState:
-    samples: Deque[tuple[float, float]] = field(default_factory=deque)
-    last_verdict: str | None = None
+class CmdState:
+    last_msg: Optional[AckermannDrive] = None
+    message_count: int = 0
 
 
 class Grader(Node):
     def __init__(self):
         super().__init__('grader')
 
-        # Scenario parameters (see a2_neil/config/params.yaml).
-        self.declare_parameter('alpha', 0.1)
-        self.declare_parameter('match_window', 200)
-        self.declare_parameter('mse_tolerance', 0.02)
         self.declare_parameter('discovery_period_s', 2.0)
         self.declare_parameter('grade_period_s', 2.0)
 
-        self.alpha = float(self.get_parameter('alpha').value)
-        self.match_window = int(self.get_parameter('match_window').value)
-        self.mse_tolerance = float(self.get_parameter('mse_tolerance').value)
         self.discovery_period_s = float(self.get_parameter('discovery_period_s').value)
         self.grade_period_s = float(self.get_parameter('grade_period_s').value)
 
         self.feedback_pub = self.create_publisher(String, '/grader/feedback', RELIABLE_QOS)
 
-        # Reference LPF state, computed from our own signal stream.
-        self._ref_samples: Deque[tuple[float, float]] = deque(maxlen=self.match_window * 4)
-        self._ref_y_prev: float | None = None
-        self.create_subscription(Float32, '/grader/signal', self._on_signal, RELIABLE_QOS)
-
-        self._hello: dict[str, HelloState] = {}
-        self._hello_subs: dict[str, object] = {}
-        self._answer: dict[str, AnswerState] = {}
-        self._answer_subs: dict[str, object] = {}
+        self._centerline: dict[str, PathState] = {}
+        self._centerline_subs: dict[str, object] = {}
+        self._cmd: dict[str, CmdState] = {}
+        self._cmd_subs: dict[str, object] = {}
 
         self.create_timer(self.discovery_period_s, self._discover)
-        self.create_timer(self.grade_period_s, self._grade_answers)
+        self.create_timer(self.grade_period_s, self._grade)
 
-        self.get_logger().info(
-            f'Grader running. ALPHA={self.alpha}, window={self.match_window}, '
-            f'mse_tol={self.mse_tolerance}'
-        )
+        self.get_logger().info('A5 Grader running (A5.1 Planner + A5.2 Controller)')
 
-    # --- signal handling ---------------------------------------------------
-    def _on_signal(self, msg: Float32) -> None:
-        x = float(msg.data)
-        if self._ref_y_prev is None:
-            y = x
-        else:
-            y = self.alpha * x + (1.0 - self.alpha) * self._ref_y_prev
-        self._ref_y_prev = y
-        t = self.get_clock().now().nanoseconds * 1e-9
-        self._ref_samples.append((t, y))
-
-    # --- discovery ---------------------------------------------------------
     def _discover(self) -> None:
         for name, types in self.get_topic_names_and_types():
-            m = HELLO_RE.match(name)
-            if m and 'std_msgs/msg/String' in types:
+            m = CENTERLINE_RE.match(name)
+            if m and 'nav_msgs/msg/Path' in types:
                 user = m.group(1)
-                if user in RESERVED_USERS or user in self._hello_subs:
+                if user in RESERVED_USERS or user in self._centerline_subs:
                     continue
-                self._hello[user] = HelloState()
-                self._hello_subs[user] = self.create_subscription(
-                    String, name, self._make_hello_cb(user), RELIABLE_QOS
+                self._centerline[user] = PathState()
+                self._centerline_subs[user] = self.create_subscription(
+                    Path, name, self._make_centerline_cb(user), RELIABLE_QOS
                 )
-                self.get_logger().info(f'Discovered A2.1 topic: {name}')
+                self.get_logger().info(f'Discovered A5.1 (Planner) topic: {name}')
                 continue
 
-            m = ANSWER_RE.match(name)
-            if m and 'std_msgs/msg/Float32' in types:
+            m = CMD_RE.match(name)
+            if m and 'ackermann_msgs/msg/AckermannDrive' in types:
                 user = m.group(1)
-                if user in RESERVED_USERS or user in self._answer_subs:
+                if user in RESERVED_USERS or user in self._cmd_subs:
                     continue
-                self._answer[user] = AnswerState(
-                    samples=deque(maxlen=self.match_window)
+                self._cmd[user] = CmdState()
+                self._cmd_subs[user] = self.create_subscription(
+                    AckermannDrive, name, self._make_cmd_cb(user), RELIABLE_QOS
                 )
-                self._answer_subs[user] = self.create_subscription(
-                    Float32, name, self._make_answer_cb(user), RELIABLE_QOS
-                )
-                self.get_logger().info(f'Discovered A2.2 topic: {name}')
+                self.get_logger().info(f'Discovered A5.2 (Controller) topic: {name}')
 
-    # --- A2.1 --------------------------------------------------------------
-    def _make_hello_cb(self, user: str):
-        def _cb(msg: String) -> None:
-            state = self._hello[user]
-            verdict = 'correct' if msg.data == 'Hello World!' else 'incorrect'
-            if verdict != state.last_verdict:
-                state.last_verdict = verdict
-                self._publish_feedback(user, verdict)
+    def _make_centerline_cb(self, user: str):
+        def _cb(msg: Path) -> None:
+            state = self._centerline[user]
+            state.last_msg = msg
+            state.message_count += 1
         return _cb
 
-    # --- A2.2 --------------------------------------------------------------
-    def _make_answer_cb(self, user: str):
-        def _cb(msg: Float32) -> None:
-            t = self.get_clock().now().nanoseconds * 1e-9
-            self._answer[user].samples.append((t, float(msg.data)))
+    def _make_cmd_cb(self, user: str):
+        def _cb(msg: AckermannDrive) -> None:
+            state = self._cmd[user]
+            state.last_msg = msg
+            state.message_count += 1
         return _cb
 
-    def _grade_answers(self) -> None:
-        if len(self._ref_samples) < self.match_window:
-            return  # not enough reference data yet
-        ref_t = np.array([t for t, _ in self._ref_samples])
-        ref_y = np.array([y for _, y in self._ref_samples])
-
-        for user, state in self._answer.items():
-            if len(state.samples) < self.match_window // 2:
+    def _grade(self) -> None:
+        for user, state in self._centerline.items():
+            if state.message_count == 0:
                 continue
-            stu_t = np.array([t for t, _ in state.samples])
-            stu_y = np.array([y for _, y in state.samples])
+            num_points = len(state.last_msg.poses)
+            self._publish_feedback(
+                user,
+                'A5.1',
+                f'Centerline: {num_points} points',
+            )
 
-            # Nearest-neighbour match on receive time.
-            idx = np.searchsorted(ref_t, stu_t)
-            idx = np.clip(idx, 1, len(ref_t) - 1)
-            left = ref_t[idx - 1]
-            right = ref_t[idx]
-            pick_left = np.abs(stu_t - left) < np.abs(stu_t - right)
-            matched = np.where(pick_left, ref_y[idx - 1], ref_y[idx])
+        for user, state in self._cmd.items():
+            if state.message_count == 0:
+                continue
+            steering = state.last_msg.steering_angle
+            speed = state.last_msg.speed
+            self._publish_feedback(
+                user,
+                'A5.2',
+                f'Control: steer={steering:.3f} speed={speed:.2f}',
+            )
 
-            mse = float(np.mean((matched - stu_y) ** 2))
-            verdict = 'correct' if mse < self.mse_tolerance else 'incorrect'
-            if verdict != state.last_verdict:
-                state.last_verdict = verdict
-                self._publish_feedback(user, verdict, extra=f'(MSE={mse:.4f})')
-
-    # --- feedback ----------------------------------------------------------
-    def _publish_feedback(self, user: str, verdict: str, extra: str = '') -> None:
-        if verdict == 'correct':
-            text = f'Congrats {user}, the answer is correct'
-        else:
-            text = f'Sorry {user}, the answer is incorrect'
-        if extra:
-            text = f'{text} {extra}'
+    def _publish_feedback(self, user: str, task: str, detail: str) -> None:
+        text = f'{user} {task}: {detail}'
         msg = String()
         msg.data = text
         self.feedback_pub.publish(msg)
