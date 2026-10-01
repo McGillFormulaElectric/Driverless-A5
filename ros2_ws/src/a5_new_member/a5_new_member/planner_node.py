@@ -126,20 +126,16 @@ class PlannerNode(Node):
         that connect a blue to a yellow cone (see `scipy.spatial.Delaunay`).
         Either is fine for grading — the tolerance is 1.0 m.
         """
-        midpoints = []
-        for b in blue:
-            distances = np.linalg.norm(yellow - b, axis=1)
-            nearest_idx = int(np.argmin(distances))
-            y = yellow[nearest_idx]
-            midpoint = (b + y) / 2.0
-            midpoints.append(midpoint)
-
-        if len(midpoints) < 3:
-            return None
-
-        midpoints_array = np.array(midpoints, dtype=float)
-        ordered = self._greedy_loop_order(midpoints_array)
-        return ordered
+        # ------------------------------------------------------------------
+        # TODO(student): implement centerline construction.
+        #
+        #   1. For each blue cone, find its nearest yellow cone and take
+        #      the midpoint -> raw centerline point.
+        #   2. Order the midpoints into a loop. `self._greedy_loop_order`
+        #      below is a working nearest-neighbour ordering you can reuse.
+        #   3. Return an (N, 2) array. Aim for N >= 30 (grader threshold).
+        # ------------------------------------------------------------------
+        return None  # <-- replace with your (N, 2) centerline array
 
     @staticmethod
     def _greedy_loop_order(points: np.ndarray) -> np.ndarray:
