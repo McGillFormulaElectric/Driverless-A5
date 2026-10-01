@@ -1,0 +1,22 @@
+version: '3.8'
+
+services:
+  a5:
+    build:
+      context: .
+    image: mfe/a5:humble
+    environment:
+      - ROS_LOCALHOST_ONLY=1
+      - ROS_DOMAIN_ID=42
+    volumes:
+      - ../ros2_ws:/workspace
+    working_dir: /workspace
+    command: >
+      bash -c "
+        source /opt/ros/humble/setup.bash &&
+        colcon build --symlink-install &&
+        source install/setup.bash &&
+        ros2 launch a2_grader neil.launch.py &
+        sleep 2 &&
+        ros2 launch a5_new_member planner.launch.py github_user:=student
+      "
