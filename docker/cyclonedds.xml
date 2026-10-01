@@ -6,10 +6,6 @@
     <General>
       <MaxMessageSize>65500B</MaxMessageSize>
     </General>
-    <Discovery>
-      <ParticipantIndex>auto</ParticipantIndex>
-      <MaxAutoParticipantIndex>100</MaxAutoParticipantIndex>
-    </Discovery>
     <Internal>
       <SocketReceiveBufferSize min="1MB"/>
     </Internal>
