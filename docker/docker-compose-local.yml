@@ -13,10 +13,11 @@ services:
     working_dir: /workspace
     command: >
       bash -c "
+        set -e;
         source /opt/ros/humble/setup.bash;
         colcon build --symlink-install;
         source install/setup.bash;
         ros2 launch a5_grader grader.launch.py &
         sleep 2;
-        ros2 launch a5_new_member planner.launch.py github_user:=student
+        ros2 launch a5_new_member controller.launch.py github_user:=student
       "

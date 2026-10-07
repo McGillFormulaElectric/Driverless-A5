@@ -28,6 +28,7 @@ def generate_launch_description():
             package='a5_new_member',
             executable='planner_node',
             name='planner_node',
+            namespace=github_user,
             output='screen',
             parameters=[params_file],
         ),
