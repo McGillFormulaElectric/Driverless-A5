@@ -118,25 +118,26 @@ class ControllerNode(Node):
 
         Returns (steering_angle_rad, v_target_mps).
         """
-        # ------------------------------------------------------------------
-        # TODO(student): implement pure pursuit.
-        #
-        #   1. Find the lookahead goal point (gx, gy) — see
-        #      self._find_lookahead_point(path) below for a working
-        #      waypoint search you can reuse.
-        #   2. Transform the goal into the vehicle body frame:
-        #         dx = gx - x
-        #         dy = gy - y
-        #         local_x =  cos(-yaw)*dx - sin(-yaw)*dy
-        #         local_y =  sin(-yaw)*dx + cos(-yaw)*dy
-        #      (equivalently local = R(-yaw) @ [dx, dy]).
-        #   3. Steering angle (bicycle model):
-        #         delta = atan2(2*WHEELBASE_L*local_y, lookahead_m**2)
-        #   4. Target speed, backing off with curvature:
-        #         curvature = 2*abs(local_y) / (lookahead_m**2)
-        #         v_target  = v_target_max - SPEED_CURVATURE_GAIN * curvature
-        # ------------------------------------------------------------------
-        return 0.0, self.v_target_min  # <-- replace with real steering/speed
+        # Find the lookahead goal point.
+        gx, gy = self._find_lookahead_point(path)
+
+        # Transform goal into vehicle body frame.
+        dx = gx - self._x
+        dy = gy - self._y
+        cos_yaw = math.cos(-self._yaw)
+        sin_yaw = math.sin(-self._yaw)
+        local_x = cos_yaw * dx - sin_yaw * dy
+        local_y = sin_yaw * dx + cos_yaw * dy
+
+        # Steering angle via bicycle model.
+        L2 = self.lookahead_m ** 2
+        steer = math.atan2(2.0 * WHEELBASE_L * local_y, L2)
+
+        # Target speed, backing off with curvature.
+        curvature = 2.0 * abs(local_y) / L2
+        v_target = self.v_target_max - SPEED_CURVATURE_GAIN * curvature
+
+        return steer, v_target
 
     def _find_lookahead_point(self, path: np.ndarray) -> tuple:
         pos = np.array([self._x, self._y])
