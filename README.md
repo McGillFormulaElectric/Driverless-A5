@@ -7,7 +7,7 @@ This assignment focuses on trajectory planning and vehicle control. You'll imple
 
 Both run alongside a grader that validates your path and control outputs via `/grader/feedback`.
 
-> **Grading Setup** — The grader runs as a local Docker service alongside your student code. Both use host networking and ROS domain ID 42 for automatic DDS discovery.
+> **Grading Setup** — The grader, planner, and controller run in one local Docker container on ROS domain ID 42. No remote grader or host networking is required.
 
 ---
 
@@ -25,7 +25,7 @@ git checkout <FirstNameLastName>
 ```
 
 ### 1.2 Docker & Local Grading
-The grader runs as a local service inside Docker alongside your student code. Both use host networking and ROS domain ID 42 for automatic DDS discovery.
+The grader, planner, and controller run in one Docker container on the same local ROS graph. The container uses ROS domain ID 42 and restricts discovery to its local network namespace.
 
 ```bash
 cd docker
@@ -33,13 +33,9 @@ docker compose -f docker-compose-local.yml build
 docker compose -f docker-compose-local.yml up -d
 ```
 
-This starts two services:
-1. **student** — your code (subscriber + publisher)
-2. **grader** — reference implementation (signal publisher + grader)
+This starts one service, `a5`, which builds the workspace and launches the local grader, planner, and controller with the `student` namespace.
 
-Both services share the same network and ROS domain, so topics auto-discover via DDS.
-
-Inside either container, the workspace is mounted at `/workspace` (your `ros2_ws`). Build and source:
+Inside the container, the workspace is mounted at `/workspace` (your `ros2_ws`). Build and source:
 
 ```bash
 cd /workspace
@@ -49,9 +45,7 @@ source install/setup.bash
 
 View logs from either service:
 ```bash
-docker compose -f docker-compose-local.yml logs student -f  # tail student logs
-docker compose -f docker-compose-local.yml logs grader -f   # tail grader logs
-docker compose -f docker-compose-local.yml logs             # both services
+docker compose -f docker-compose-local.yml logs -f a5       # grader and student logs
 ```
 
 Stop everything:
@@ -237,4 +231,3 @@ git clone -b solution/a5-student-code <repo-url>
 **Solution Branch Reference:** [`solution/a5-student-code`](https://github.com/McGillFormulaElectric/Driverless-A5/tree/solution/a5-student-code)
 
 **Pull Request:** [PR #2 - A5 Solution](https://github.com/McGillFormulaElectric/Driverless-A5/pull/2)
-
