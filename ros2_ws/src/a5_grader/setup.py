@@ -22,7 +22,7 @@ setup(
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [
-            'signal_publisher = a5_grader.a5_grader.signal_publisher:main',
+            'scenario_publisher = a5_grader.a5_grader.signal_publisher:main',
             'grader = a5_grader.a5_grader.grader:main',
         ],
     },

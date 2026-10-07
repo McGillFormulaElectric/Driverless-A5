@@ -1,4 +1,4 @@
-"""Bring up Neil's side: reference signal publisher + grader.
+"""Bring up the local A5 scenario publishers and grader.
 
 Loads scenario parameters from share/a5_grader/config/params.yaml.
 """
@@ -16,8 +16,8 @@ def generate_launch_description():
     return LaunchDescription([
         Node(
             package='a5_grader',
-            executable='signal_publisher',
-            name='signal_publisher',
+            executable='scenario_publisher',
+            name='scenario_publisher',
             output='screen',
             parameters=[params_file],
         ),

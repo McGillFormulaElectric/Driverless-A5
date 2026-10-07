@@ -182,7 +182,7 @@ Driverless-A5/
 
 ## 6. Troubleshooting
 
-- **`ros2 topic list` doesn't show `/grader/cones`.** Ensure both grader and student are running in the container. Check `docker compose logs`.
+- **`ros2 topic list` doesn't show `/grader/cone_map` or `/student/state`.** Ensure the local scenario publisher is running with the grader. Check `docker compose logs`.
 - **Topics visible but grader shows no feedback.** Verify your centerline and command are publishing to correct topics (`/<user>/centerline` and `/<user>/cmd`).
 - **Centerline is jagged or backwards.** Check your cone-pairing logic and waypoint ordering. Visualize with Foxglove to debug.
 - **Controller steers wildly.** Check lookahead distance and speed scaling. Start with conservative tuning parameters.
