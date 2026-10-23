@@ -136,7 +136,35 @@ class ControllerNode(Node):
         #         curvature = 2*abs(local_y) / (lookahead_m**2)
         #         v_target  = v_target_max - SPEED_CURVATURE_GAIN * curvature
         # ------------------------------------------------------------------
-        return 0.0, self.v_target_min  # <-- replace with real steering/speed
+        # goal
+        gx, gy = self._find_lookahead_point(path)
+
+        # goal wrt vehicle 
+        dx = gx - self._x
+        dy = gy - self._y
+
+        # rotate by -yaw
+        cos_yaw = math.cos(-self._yaw)
+        sin_yaw = math.sin(-self._yaw)
+        local_x = cos_yaw * dx - sin_yaw * dy
+        local_y = sin_yaw * dx + cos_yaw * dy
+        """
+        basically applyin a rotation matrix to [x,y]
+        [[cos -sin],
+        [sin cos]]
+        x
+        y
+        """
+        # steering angle (bicycle model)
+        delta = math.atan2(2.0 * WHEELBASE_L * local_y, self.lookahead_m**2)
+
+        # target speed, reduced if big curvature
+        curvature = 2.0 * abs(local_y)/ (self.lookahead_m**2)
+        v_target = self.v_target_max - SPEED_CURVATURE_GAIN * curvature
+
+
+
+        return delta, v_target #0.0, self.v_target_min  # <-- replace with real steering/speed
 
     def _find_lookahead_point(self, path: np.ndarray) -> tuple:
         pos = np.array([self._x, self._y])

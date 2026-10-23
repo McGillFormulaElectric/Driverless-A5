@@ -29,6 +29,7 @@ from rclpy.qos import (
     QoSProfile,
     QoSReliabilityPolicy,
 )
+from scipy.spatial import Delaunay
 
 RELIABLE_QOS = QoSProfile(
     reliability=QoSReliabilityPolicy.RELIABLE,
@@ -135,7 +136,66 @@ class PlannerNode(Node):
         #      below is a working nearest-neighbour ordering you can reuse.
         #   3. Return an (N, 2) array. Aim for N >= 30 (grader threshold).
         # ------------------------------------------------------------------
-        return None  # <-- replace with your (N, 2) centerline array
+        # # 1. Compute pairwise distances: shape (N_blue, N_yellow)
+        # diff = blue[:, np.newaxis, :] - yellow[np.newaxis, :, :]
+        # dists = np.linalg.norm(diff, axis=2)
+        # # 2. For each blue cone, find the index of the nearest yellow cone
+        # nearest_yellow_indices = np.argmin(dists, axis=1)
+        # # 3. Calculate midpoints
+        # raw_midpoints = (blue + yellow[nearest_yellow_indices]) / 2.0
+        # # 4. Order midpoints into a loop
+        # ordered_centerline = self._greedy_loop_order(raw_midpoints)
+        # return ordered_centerline
+        # midpoints = []
+        # for b in blue:
+        #     dists = np.linalg.norm(yellow-b, axis=1) # broadcase cone b to take all norms
+        #     nearest_idx = np.argmin(dists)
+        #     midpoints.append((b+yellow[nearest_idx])/2.0)
+
+        # raw_midpoints = np.array(midpoints, dtype=float)
+        # ordered_centerline = self._greedy_loop_order(raw_midpoints)
+        n_blue = len(blue)
+        all_cones = np.vstack([blue, yellow])
+        # triangles with no vertices in the circumcircle of the triangle
+        # ensure large triangles
+        tri = Delaunay(all_cones)
+
+        edges = set()
+        for simplex in tri.simplices: 
+            # in 2d a simplex is a triangle
+            for i in range(3):
+                # i is the vertex (try all vertex of the triangle)
+                # Each simplex has 3 vertices forming 3 edges
+                u, v = simplex[i], simplex[(i+1) % 3]
+                # ensure u < v for uniqueness where u and v are index of the cones
+                # we don't want to compute same edge twice 
+                p1,p2 = min(u,v), max(u,v)
+
+                # check edge connects blune and yellow cones
+                is_blue_p1 = p1 < n_blue
+                is_blue_p2 = p2 < n_blue
+                if is_blue_p1 != is_blue_p2:
+                    edges.add((p1,p2))                
+        
+        if not edges:
+            return None
+
+        MAX_TRACK_WIDTH = 7.0  
+
+        midpoints = []
+        for u,v in edges:
+            dist = np.linalg.norm(all_cones[u] - all_cones[v])
+            if dist <= MAX_TRACK_WIDTH:
+                # compute midpoint of the edge between vertex w/ index u and v
+                midpoints.append((all_cones[u]+all_cones[v])/2)
+
+        if len(midpoints) < 3:
+            return None
+        raw_midpoints = np.array(midpoints, dtype=float)
+        # order midpoints into a loop
+        ordered_centerline = self._greedy_loop_order(raw_midpoints)
+
+        return ordered_centerline  
 
     @staticmethod
     def _greedy_loop_order(points: np.ndarray) -> np.ndarray:
