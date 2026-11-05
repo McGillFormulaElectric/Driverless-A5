@@ -135,7 +135,14 @@ class PlannerNode(Node):
         #      below is a working nearest-neighbour ordering you can reuse.
         #   3. Return an (N, 2) array. Aim for N >= 30 (grader threshold).
         # ------------------------------------------------------------------
-        return None  # <-- replace with your (N, 2) centerline array
+        
+        midpoints = []
+        for b in blue:
+            distances = np.linalg.norm(yellow - b, axis=1)
+            i = int(np.argmin(distances))
+            midpoints.append((b + yellow[i]) / 2)
+        points = np.array(midpoints)
+        return self._greedy_loop_order(points)
 
     @staticmethod
     def _greedy_loop_order(points: np.ndarray) -> np.ndarray:

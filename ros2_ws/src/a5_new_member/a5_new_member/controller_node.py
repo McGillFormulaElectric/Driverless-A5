@@ -136,7 +136,14 @@ class ControllerNode(Node):
         #         curvature = 2*abs(local_y) / (lookahead_m**2)
         #         v_target  = v_target_max - SPEED_CURVATURE_GAIN * curvature
         # ------------------------------------------------------------------
-        return 0.0, self.v_target_min  # <-- replace with real steering/speed
+        gx, gy = self._find_lookahead_point(path)
+        dx = gx - self._x
+        dy = gy - self._y
+        local_y = math.sin(-self._yaw) * dx + math.cos(-self._yaw) * dy
+        delta = math.atan2(2 * WHEELBASE_L * local_y, self.lookahead_m ** 2)
+        curvature = 2 * abs(local_y) / (self.lookahead_m ** 2)
+        v_target = self.v_target_max - SPEED_CURVATURE_GAIN * curvature
+        return delta, v_target
 
     def _find_lookahead_point(self, path: np.ndarray) -> tuple:
         pos = np.array([self._x, self._y])
